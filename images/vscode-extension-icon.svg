@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Background -->
+  <rect width="128" height="128" rx="16" fill="#1e1e1e" />
+  
+  <!-- Kubernetes/Kustomize wheel (simplified) -->
+  <circle cx="64" cy="64" r="40" fill="none" stroke="#326CE5" stroke-width="4" />
+  
+  <!-- Spokes representing Kubernetes wheel -->
+  <line x1="64" y1="24" x2="64" y2="38" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="64" y1="90" x2="64" y2="104" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="24" y1="64" x2="38" y2="64" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="90" y1="64" x2="104" y2="64" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="35.5" y1="35.5" x2="45.5" y2="45.5" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="35.5" y1="92.5" x2="45.5" y2="82.5" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="92.5" y1="35.5" x2="82.5" y2="45.5" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  <line x1="92.5" y1="92.5" x2="82.5" y2="82.5" stroke="#326CE5" stroke-width="4" stroke-linecap="round" />
+  
+  <!-- YAML file representation -->
+  <rect x="44" y="44" width="40" height="40" rx="4" fill="#ffffff" />
+  
+  <!-- YAML file content lines -->
+  <line x1="52" y1="54" x2="76" y2="54" stroke="#1e1e1e" stroke-width="2" stroke-linecap="round" />
+  <line x1="52" y1="62" x2="70" y2="62" stroke="#1e1e1e" stroke-width="2" stroke-linecap="round" />
+  <line x1="52" y1="70" x2="74" y2="70" stroke="#1e1e1e" stroke-width="2" stroke-linecap="round" />
+  
+  <!-- Navigation arrow -->
+  <polygon points="90,64 78,52 78,60 60,60 60,68 78,68 78,76" fill="#53BF41" />
+</svg>

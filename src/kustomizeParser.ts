@@ -33,18 +33,56 @@ export class KustomizeParser {
         fileBackReferences: new Map<string, string[]>()
     };
 
-    constructor(private workspaceRoot: string) {}
+    constructor(private workspaceRoot: string) { }
 
+    /**
+     * Check if a YAML file is a Kustomize file by examining its content
+     */
+    public isKustomizationFile(filePath: string): boolean {
+        try {
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            const parsed = yaml.load(fileContent) as any;
+
+            if (!parsed) {
+                return false;
+            }
+
+            // Check if this file has the Kustomize API version
+            if (parsed.apiVersion &&
+                (parsed.apiVersion.startsWith('kustomize.config.k8s.io/') ||
+                    parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1beta2')) {
+
+                // Also check for 'kind: Kustomization'
+                return parsed.kind === 'Kustomization';
+            }
+
+            // For older kustomization files, check for common fields
+            const kustomizeFields = [
+                'resources', 'bases', 'patchesStrategicMerge', 'patchesJson6902',
+                'configMapGenerator', 'secretGenerator', 'generatorOptions',
+                'namePrefix', 'nameSuffix', 'commonLabels', 'commonAnnotations'
+            ];
+
+            // Count how many Kustomize fields are present
+            const fieldCount = kustomizeFields.filter(field => field in parsed).length;
+
+            // If at least 2 Kustomize-specific fields are present, consider it a Kustomization
+            return fieldCount >= 2;
+        } catch (error) {
+            console.error(`Error checking if ${filePath} is a Kustomization file:`, error);
+            return false;
+        }
+    }
     /**
      * Find all kustomization files in the workspace
      */
     public async findKustomizationFiles(): Promise<string[]> {
         try {
-            const files = await glob('**/kustomization.{yaml,yml}', { 
+            const files = await glob('**/kustomization.{yaml,yml}', {
                 cwd: this.workspaceRoot,
-                ignore: ['**/node_modules/**']  
+                ignore: ['**/node_modules/**']
             });
-            
+
             // Make paths absolute
             const absolutePaths = files.map(file => path.join(this.workspaceRoot, file));
             return absolutePaths;
@@ -56,7 +94,7 @@ export class KustomizeParser {
 
     // Rest of the class remains the same...
     // [remaining code is identical to the previous implementation]
-    
+
     /**
      * Parse a single kustomization file
      */
@@ -64,7 +102,7 @@ export class KustomizeParser {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
             const parsed = yaml.load(fileContent) as any;
-            
+
             if (!parsed) {
                 return null;
             }
@@ -100,7 +138,7 @@ export class KustomizeParser {
         if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isDirectory()) {
             const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
             const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
-            
+
             if (fs.existsSync(kustomizationPath)) {
                 return kustomizationPath;
             } else if (fs.existsSync(kustomizationPathYml)) {
@@ -121,7 +159,7 @@ export class KustomizeParser {
         };
 
         const kustomizationFiles = await this.findKustomizationFiles();
-        
+
         for (const filePath of kustomizationFiles) {
             const kustomization = this.parseKustomizationFile(filePath);
             if (!kustomization) continue;
@@ -134,7 +172,7 @@ export class KustomizeParser {
                     try {
                         const resolvedPath = this.resolveReference(filePath, refPath);
                         references.push(resolvedPath);
-                        
+
                         // Update back-references
                         if (!this.referenceMap.fileBackReferences.has(resolvedPath)) {
                             this.referenceMap.fileBackReferences.set(resolvedPath, []);
@@ -154,7 +192,7 @@ export class KustomizeParser {
             addReferences(kustomization.patchesStrategicMerge);
             addReferences(kustomization.configurations);
             addReferences(kustomization.crds);
-            
+
             // Handle JSON 6902 patches which have a path field
             kustomization.patchesJson6902.forEach(patch => {
                 if (patch.path) {
@@ -181,5 +219,26 @@ export class KustomizeParser {
      */
     public getBackReferencesForFile(filePath: string): string[] {
         return this.referenceMap.fileBackReferences.get(filePath) || [];
+    }
+    /**
+ * Check if a path is a directory
+ */
+    public isDirectory(filePath: string): boolean {
+        try {
+            return fs.existsSync(filePath) && fs.statSync(filePath).isDirectory();
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Check if a file exists
+     */
+    public fileExists(filePath: string): boolean {
+        try {
+            return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+        } catch (error) {
+            return false;
+        }
     }
 }

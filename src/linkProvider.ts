@@ -6,7 +6,7 @@ import { KustomizeParser } from './kustomizeParser';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
-    
+
     constructor(private parser: KustomizeParser) {
         // Create a diagnostic collection for this provider
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('kustomize-navigator');
@@ -37,7 +37,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
             // Check if this is a kustomization file
             const isKustomizationFile = path.basename(document.fileName).match(/^kustomization\.ya?ml$/);
-            
+
             if (isKustomizationFile) {
                 console.log(`Processing kustomization file: ${document.fileName}`);
                 // Process kustomization.yaml references
@@ -47,10 +47,10 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 // For non-kustomization files, add links to files that reference this one
                 await this.processBackReferences(document, links);
             }
-            
+
             // Update diagnostics for this document
             this.diagnosticCollection.set(document.uri, diagnostics);
-            
+
             console.log(`Found ${links.length} links and ${diagnostics.length} diagnostics in: ${document.fileName}`);
         } catch (error) {
             console.error(`Error processing links for ${document.fileName}:`, error);
@@ -137,17 +137,17 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         diagnostics: vscode.Diagnostic[]
     ): Promise<void> {
         console.log(`Trying to add link for reference: ${reference}`);
-        
+
         try {
             // Find the reference in the document text
             const text = document.getText();
             let referenceIndex = -1;
             let referenceLength = reference.length;
-            
+
             // Try with quotes first
             const doubleQuoteIndex = text.indexOf(`"${reference}"`);
             const singleQuoteIndex = text.indexOf(`'${reference}'`);
-            
+
             if (doubleQuoteIndex !== -1) {
                 referenceIndex = doubleQuoteIndex + 1; // +1 to skip the quote
             } else if (singleQuoteIndex !== -1) {
@@ -157,7 +157,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 // Look for pattern like "- reference" or "  - reference"
                 const regExp = new RegExp(`[\\s-]+${reference}(?=[\\s,]|$)`, 'g');
                 const match = regExp.exec(text);
-                
+
                 if (match) {
                     // Calculate the position where the actual reference starts (after "- ")
                     const matchStart = match.index;
@@ -165,7 +165,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                     referenceIndex = matchStart + prefixLength;
                 }
             }
-            
+
             if (referenceIndex === -1) {
                 console.log(`Could not find reference ${reference} in document text`);
                 return;
@@ -174,23 +174,23 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             // Resolve the reference to a file path
             let resolvedPath = path.resolve(baseDir, reference);
             console.log(`Resolved path: ${resolvedPath}`);
-            
+
             // Create position and range for the link
             const pos = document.positionAt(referenceIndex);
             const range = new vscode.Range(
                 pos,
                 pos.translate(0, reference.length)
             );
-            
+
             // Check if the file exists
             let fileExists = fs.existsSync(resolvedPath);
             let targetIsKustomization = false;
-            
+
             // If it's a directory, look for kustomization.yaml inside
             if (fileExists && fs.statSync(resolvedPath).isDirectory()) {
                 const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
                 const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
-                
+
                 if (fs.existsSync(kustomizationPath)) {
                     resolvedPath = kustomizationPath;
                     targetIsKustomization = true;
@@ -207,10 +207,13 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
             // Create link if file exists
             if (fileExists) {
-                // Create and add the document link
+                // Create and add the document link with a simple tooltip
                 const uri = vscode.Uri.file(resolvedPath);
                 const docLink = new vscode.DocumentLink(range, uri);
-                docLink.tooltip = `Go to ${reference}${targetIsKustomization ? ' (kustomization)' : ''}`;
+                docLink.tooltip = targetIsKustomization 
+                    ? `Go to kustomization: ${reference}` 
+                    : `Go to ${reference}`;
+                    
                 links.push(docLink);
                 console.log(`Added link to ${resolvedPath}`);
             } else {
@@ -223,7 +226,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 diagnostic.source = 'Kustomize Navigator';
                 diagnostics.push(diagnostic);
                 console.log(`Added diagnostic for missing file: ${reference}`);
-                
+
                 // Still add a link, but it will point to a non-existent file
                 const uri = vscode.Uri.file(resolvedPath);
                 const docLink = new vscode.DocumentLink(range, uri);

@@ -18,7 +18,7 @@ Kustomize Navigator parses your YAML files to find relationships between them an
 - In referenced files, it shows which kustomization files reference them
 - Missing files are highlighted with warnings
 
-![Kustomize Navigator Demo](images/demo.gif)
+![Kustomize Navigator Demo](images/demo.png)
 
 ## Supported References
 
@@ -44,7 +44,6 @@ The extension identifies and creates links for the following Kustomize fields:
 
 ## Requirements
 
-- Visual Studio Code 1.99.0 or higher
 - A workspace containing Kustomize YAML files
 
 ## Usage
@@ -62,20 +61,29 @@ Currently, this extension does not have configurable settings.
 ## Known Issues
 
 - Remote Git references (like `github.com/...`) are not yet supported for navigation
-- The extension activates for all YAML files in workspaces containing Kustomize files
+- Missing files warning indicators are not showing in the tooltip
 
 ## Release Notes
 
 ### 0.1.0
 
-- Initial release
+Initial release
 - Ctrl+click navigation between Kustomize files
 - Warning indicators for missing files
 - Support for identifying Kustomize content regardless of filename
 
-### 0.1.1
+### 0.2.0
 
-- **VS Code engine version constraint**: Changed from "^1.99.0" to ">=1.0.0"
+Improvements
+- Enhanced Kustomize detection: Now identifies Kustomize files by content, not just filename
+- Resource Preview: Hover over Kustomize references to see a list of resources defined in the target file
+- Clickable Resource List: Each resource in the preview is clickable for direct navigation
+- VS Code engine version constraint: Changed from "^1.99.0" to ">=1.0.0"
+
+Bug Fixes
+- Fixed link detection for unquoted YAML references
+- Corrected path resolution for directory-based kustomization files
+- Fixed handling of various Kustomize file formats
 
 ## Contributing
 

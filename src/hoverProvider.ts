@@ -110,9 +110,9 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                 const hoverContent = new vscode.MarkdownString();
                 hoverContent.isTrusted = true;
                 hoverContent.supportHtml = true;  // Enable HTML support
-                hoverContent.appendMarkdown(`## Kustomization: \`${reference}\`\n\n`);
+                hoverContent.appendMarkdown(`### Kustomization: \`${reference}\`\n\n`);
                 if (targetKustomization.resources.length > 0) {
-                    hoverContent.appendMarkdown(`### Resources (${targetKustomization.resources.length})\n`);
+                    hoverContent.appendMarkdown(`#### Resources (${targetKustomization.resources.length})\n`);
 
                     // Make each resource clickable
                     targetKustomization.resources.forEach(resource => {
@@ -124,7 +124,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                 }
 
                 if (targetKustomization.bases.length > 0) {
-                    hoverContent.appendMarkdown(`### Bases (${targetKustomization.bases.length})\n`);
+                    hoverContent.appendMarkdown(`#### Bases (${targetKustomization.bases.length})\n`);
 
                     // Make each base clickable
                     targetKustomization.bases.forEach(base => {
@@ -154,7 +154,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
 
                 if (targetKustomization.patches.length > 0 || targetKustomization.patchesStrategicMerge.length > 0) {
                     const patchCount = targetKustomization.patches.length + targetKustomization.patchesStrategicMerge.length;
-                    hoverContent.appendMarkdown(`### Patches (${patchCount})\n`);
+                    hoverContent.appendMarkdown(`#### Patches (${patchCount})\n`);
 
                     // Make each patch clickable
                     const processPatches = (patches: any[]) => {
@@ -187,21 +187,21 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
 
                     // Process regular patches
                     if (targetKustomization.patches.length > 0) {
-                        hoverContent.appendMarkdown(`### Patches (${targetKustomization.patches.length})\n`);
+                        hoverContent.appendMarkdown(`#### Patches (${targetKustomization.patches.length})\n`);
                         processPatches(targetKustomization.patches);
                         hoverContent.appendMarkdown('\n');
                     }
 
                     // Process strategic merge patches separately
                     if (targetKustomization.patchesStrategicMerge.length > 0) {
-                        hoverContent.appendMarkdown(`### Strategic Merge Patches (${targetKustomization.patchesStrategicMerge.length})\n`);
+                        hoverContent.appendMarkdown(`#### Strategic Merge Patches (${targetKustomization.patchesStrategicMerge.length})\n`);
                         processPatches(targetKustomization.patchesStrategicMerge);
                         hoverContent.appendMarkdown('\n');
                     }
 
                     // Process JSON 6902 patches
                     if (targetKustomization.patchesJson6902.length > 0) {
-                        hoverContent.appendMarkdown(`### JSON 6902 Patches (${targetKustomization.patchesJson6902.length})\n`);
+                        hoverContent.appendMarkdown(`#### JSON 6902 Patches (${targetKustomization.patchesJson6902.length})\n`);
                         targetKustomization.patchesJson6902.forEach(patch => {
                             if (patch && typeof patch === 'object' && patch.path && typeof patch.path === 'string') {
                                 const patchPath = path.resolve(path.dirname(resolvedPath), patch.path);

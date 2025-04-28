@@ -5,13 +5,23 @@ import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 
 // Interface for parsed kustomization file
+export interface KustomizationPatch {
+    path?: string;
+    target?: {
+        kind?: string;
+        name?: string;
+        [key: string]: any;
+    };
+    [key: string]: any;
+}
+
 export interface KustomizationFile {
     filePath: string;
     resources: string[];
     bases: string[];
-    patches: string[];
+    patches: (string | KustomizationPatch)[];
     patchesStrategicMerge: string[];
-    patchesJson6902: Array<{ path: string }>;
+    patchesJson6902: KustomizationPatch[];
     components: string[];
     configurations: string[];
     crds: string[];
@@ -167,10 +177,20 @@ export class KustomizeParser {
             const references: string[] = [];
 
             // Process all reference types
-            const addReferences = (paths: string[]) => {
+            const addReferences = (paths: (string | KustomizationPatch)[]) => {
                 for (const refPath of paths) {
                     try {
-                        const resolvedPath = this.resolveReference(filePath, refPath);
+                        // Handle both string and object paths
+                        let resolvedPath;
+                        if (typeof refPath === 'string') {
+                            resolvedPath = this.resolveReference(filePath, refPath);
+                        } else if (refPath && typeof refPath === 'object' && refPath.path) {
+                            resolvedPath = this.resolveReference(filePath, refPath.path);
+                        } else {
+                            // Skip invalid references
+                            continue;
+                        }
+
                         references.push(resolvedPath);
 
                         // Update back-references
@@ -179,7 +199,7 @@ export class KustomizeParser {
                         }
                         this.referenceMap.fileBackReferences.get(resolvedPath)!.push(filePath);
                     } catch (error) {
-                        console.warn(`Failed to resolve reference ${refPath} from ${filePath}:`, error);
+                        console.warn(`Failed to resolve reference ${JSON.stringify(refPath)} from ${filePath}:`, error);
                     }
                 }
             };

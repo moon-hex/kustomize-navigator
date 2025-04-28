@@ -26,6 +26,7 @@
   "keywords": [
     "kubernetes",
     "kustomize",
+    "kustomization",
     "gitops",
     "yaml",
     "flux"
@@ -48,9 +49,10 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/mocha": "^10.0.10",
     "@types/node": "20.x",
-    "@types/vscode": "^1.99.0",
+    "@types/vscode": "*",
     "@typescript-eslint/eslint-plugin": "^8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "@vscode/test-cli": "^0.0.10",

@@ -73,6 +73,10 @@ Currently, this extension does not have configurable settings.
 - Warning indicators for missing files
 - Support for identifying Kustomize content regardless of filename
 
+### 0.1.1
+
+- **VS Code engine version constraint**: Changed from "^1.99.0" to ">=1.0.0"
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -80,7 +84,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 This extension is licensed under the [MIT License](LICENSE).
-
----
-
-**Enjoy your enhanced Kustomize workflow!**

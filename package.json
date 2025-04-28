@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate between Kustomize YAML files with ctrl+click",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "engines": {
     "vscode": "^1.99.0"
   },

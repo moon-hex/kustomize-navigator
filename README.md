@@ -78,12 +78,22 @@ Improvements
 - Enhanced Kustomize detection: Now identifies Kustomize files by content, not just filename
 - Resource Preview: Hover over Kustomize references to see a list of resources defined in the target file
 - Clickable Resource List: Each resource in the preview is clickable for direct navigation
-- VS Code engine version constraint: Changed from "^1.99.0" to ">=1.0.0"
 
 Bug Fixes
 - Fixed link detection for unquoted YAML references
 - Corrected path resolution for directory-based kustomization files
 - Fixed handling of various Kustomize file formats
+
+### 0.2.1
+
+Bug Fixes
+- VS Code engine version constraint: Changed from "^1.99.0" to ">=1.0.0"
+
+### 0.3.0
+
+Improvements
+- Added support for decoration of post-build substitution variables in Flux
+
 
 ## Contributing
 

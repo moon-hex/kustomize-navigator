@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import { KustomizeFileWatcher } from './fileWatcher';
 import { KustomizeParser } from './kustomizeParser';
-import { KustomizeHoverProvider } from './hoverProvider';
-// Fix the import to use the class name
 import { KustomizeLinkProvider } from './linkProvider';
+import { KustomizeHoverProvider } from './hoverProvider';
+import { FluxVariableDecorator } from './fluxDecorator';
+import { FluxCompletionProvider } from './fluxCompletionProvider';
+import { FluxDiagnosticProvider } from './fluxDiagnostics';
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Kustomize Navigator extension is now active');
@@ -14,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('Kustomize Navigator: No workspace folder is open');
         return;
     }
- 
+
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
 
     // Initialize the file watcher
@@ -25,48 +27,53 @@ export async function activate(context: vscode.ExtensionContext) {
     const kustomizationFiles = await fileWatcher.getParser().findKustomizationFiles();
 
     if (kustomizationFiles.length > 0) {
-        // This workspace contains kustomization files, register the provider for all YAML files
+        // This workspace contains kustomization files, register providers
+
+        // Register link provider
         const linkProvider = new KustomizeLinkProvider(fileWatcher.getParser());
         const linkProviderDisposable = vscode.languages.registerDocumentLinkProvider(
             { language: 'yaml' },
             linkProvider
         );
 
-        // Add disposables to context.subscriptions
-        context.subscriptions.push(fileWatcher, linkProviderDisposable, linkProvider);
-
-        // Log success
-        vscode.window.showInformationMessage(`Kustomize Navigator: Initialized successfully (found ${kustomizationFiles.length} kustomization files)`);
-    } else {
-        // No kustomization files found, so don't register the provider
-        console.log('Kustomize Navigator: No kustomization files found in workspace, disabling extension');
-        fileWatcher.dispose();
-    }
-    if (kustomizationFiles.length > 0) {
-        // This workspace contains kustomization files, register the providers
-        const linkProvider = new KustomizeLinkProvider(fileWatcher.getParser());
-        const linkProviderDisposable = vscode.languages.registerDocumentLinkProvider(
-            { language: 'yaml' },
-            linkProvider
-        );
-
-        // Register hover provider for detailed resource information
+        // Register hover provider
         const hoverProvider = new KustomizeHoverProvider(fileWatcher.getParser());
         const hoverProviderDisposable = vscode.languages.registerHoverProvider(
             { language: 'yaml' },
             hoverProvider
         );
 
+        // Register Flux variable decorator
+        const fluxDecorator = new FluxVariableDecorator();
+
+        // Register Flux variable completion provider
+        const completionProvider = new FluxCompletionProvider();
+        const completionProviderDisposable = vscode.languages.registerCompletionItemProvider(
+            { language: 'yaml' },
+            completionProvider,
+            '$', '{' // Triggered by ${
+        );
+
+        // Register Flux diagnostic provider
+        const diagnosticProvider = new FluxDiagnosticProvider();
+
         // Add disposables to context.subscriptions
         context.subscriptions.push(
             fileWatcher,
             linkProviderDisposable,
             linkProvider,
-            hoverProviderDisposable
+            hoverProviderDisposable,
+            fluxDecorator,
+            completionProviderDisposable,
+            diagnosticProvider
         );
 
         // Log success
         vscode.window.showInformationMessage(`Kustomize Navigator: Initialized successfully (found ${kustomizationFiles.length} kustomization files)`);
+    } else {
+        // No kustomization files found, so don't register the providers
+        console.log('Kustomize Navigator: No kustomization files found in workspace, disabling extension');
+        fileWatcher.dispose();
     }
 }
 

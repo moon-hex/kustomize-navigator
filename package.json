@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate between Kustomize YAML files with ctrl+click",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "engines": {
     "vscode": ">=1.0.0"
   },
@@ -19,6 +19,21 @@
         "title": "Parse Kustomization Folder"
       }
     ]
+  },
+  "configuration": {
+    "title": "Kustomize Navigator",
+    "properties": {
+      "kustomizeNavigator.highlightFluxVariables": {
+        "type": "boolean",
+        "default": true,
+        "description": "Highlight Flux variable substitutions in YAML files"
+      },
+      "kustomizeNavigator.fluxVariableColor": {
+        "type": "string",
+        "default": "#3498db",
+        "description": "Color to use for highlighting Flux variables"
+      }
+    }
   },
   "categories": [
     "Other"

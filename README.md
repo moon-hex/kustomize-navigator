@@ -9,59 +9,88 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - **Resource Verification**: Displays warnings for references to non-existent files
 - **Back-Reference Support**: Shows which files reference the current file
 - **GitOps Ready**: Works with any Kubernetes GitOps repository that uses Kustomize
-
-## How It Works
-
-Kustomize Navigator parses your YAML files to find relationships between them and then provides clickable links for easy navigation:
-
-- In kustomization files, it creates links for all resources, bases, patches, etc.
-- In referenced files, it shows which kustomization files reference them
-- Missing files are highlighted with warnings
+- **Flux Variable Support**: Highlights and validates Flux variable substitutions like `${cluster_env:=dev}`
+- **Variable Autocompletion**: Suggests variables when typing `${` based on workspace usage
+- **Intelligent Diagnostics**: Identifies common configuration issues in Kubernetes and Flux manifests
+- **Customizable Checks**: Toggle individual diagnostic checks through settings
 
 ![Kustomize Navigator Demo](images/demo.png)
 
-## Supported References
+## Extension Settings
 
-The extension identifies and creates links for the following Kustomize fields:
+### General Settings
 
-- `resources`
-- `bases`
-- `components`
-- `patches`
-- `patchesStrategicMerge`
-- `patchesJson6902`
-- `configurations`
-- `crds`
-- `generators`
-- `transformers`
+- `kustomizeNavigator.highlightFluxVariables`: Enable/disable highlighting Flux variables (default: `true`)
+- `kustomizeNavigator.fluxVariableColor`: Color to use for highlighting Flux variables (default: `#3498db`)
+- `kustomizeNavigator.standardFluxVariables`: List of standard Flux variables to suggest in autocompletion
 
-## Installation
+### Diagnostic Checks
 
-1. Open VS Code
-2. Go to Extensions (Ctrl+Shift+X)
-3. Search for "Kustomize Navigator"
-4. Click Install
-
-## Requirements
-
-- A workspace containing Kustomize YAML files
-
-## Usage
-
-1. Open a folder containing Kustomize files
-2. Open any kustomization.yaml file or any YAML file that uses Kustomize format
-3. Hover over a reference to see the link tooltip
-4. Ctrl+click (or Cmd+click on macOS) to navigate to the referenced file
-5. Missing files will be highlighted with warning indicators
+- `kustomizeNavigator.diagnostics.enabled`: Master toggle for all diagnostic checks (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.resourceNaming`: Check resource names against Kubernetes naming conventions (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.namespaceRequired`: Check if namespaced resources have a namespace specified (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.recursiveDependencies`: Check for recursive dependencies in Flux kustomizations (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.imageTags`: Check for hardcoded image tags or missing tags (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.securityIssues`: Check for common security issues like privileged containers (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.fluxVersions`: Check for deprecated Flux API versions (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.gitopsComponents`: Check if essential GitOps components are present (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.performanceIssues`: Check for configurations that might cause performance issues (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.variableSubstitution`: Check for Flux variable substitution issues (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.indentation`: Check for consistent YAML indentation (default: `true`)
 
 ## Extension Settings
 
-Currently, this extension does not have configurable settings.
+### General Settings
+
+- `kustomizeNavigator.highlightFluxVariables`: Enable/disable highlighting Flux variables (default: `true`)
+- `kustomizeNavigator.fluxVariableColor`: Color to use for highlighting Flux variables (default: `#3498db`)
+- `kustomizeNavigator.standardFluxVariables`: List of standard Flux variables to suggest in autocompletion
+
+### Diagnostic Checks
+
+- `kustomizeNavigator.diagnostics.enabled`: Master toggle for all diagnostic checks (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.resourceNaming`: Check resource names against Kubernetes naming conventions (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.namespaceRequired`: Check if namespaced resources have a namespace specified (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.recursiveDependencies`: Check for recursive dependencies in Flux kustomizations (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.imageTags`: Check for hardcoded image tags or missing tags (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.securityIssues`: Check for common security issues like privileged containers (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.fluxVersions`: Check for deprecated Flux API versions (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.gitopsComponents`: Check if essential GitOps components are present (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.performanceIssues`: Check for configurations that might cause performance issues (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.variableSubstitution`: Check for Flux variable substitution issues (default: `true`)
+- `kustomizeNavigator.diagnostics.checks.indentation`: Check for consistent YAML indentation (default: `true`)
+
+### Commands
+
+- `kustomize-navigator.toggleAllChecks`: Toggle all diagnostic checks on/off
+- `kustomize-navigator.resetChecksToDefault`: Reset all diagnostic checks to default (enabled)
 
 ## Known Issues
 
 - Remote Git references (like `github.com/...`) are not yet supported for navigation
 - Missing files warning indicators are not showing in the tooltip
+
+## Diagnostic Checks
+
+The extension analyzes your YAML files for common issues and best practices:
+
+### Kubernetes Best Practices
+- Resource naming conventions
+- Namespace specifications for namespaced resources 
+- Container image tag usage
+- YAML indentation consistency
+
+### Security Checks
+- Detection of privileged containers
+- Host network usage warnings
+- Security context configuration issues
+
+### Flux-specific Checks
+- API version deprecation warnings
+- Recursive dependency detection
+- Variable substitution syntax validation
+- Essential GitOps component verification
+- Performance optimization suggestions
 
 ## Release Notes
 
@@ -94,6 +123,11 @@ Bug Fixes
 Improvements
 - Added support for decoration of post-build substitution variables in Flux
 
+### 0.4.0
+
+Improvements
+- Added various diagnostic and security checks
+- Added configuration options for customizing extension behavior
 
 ## Contributing
 

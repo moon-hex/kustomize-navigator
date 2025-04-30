@@ -4,29 +4,83 @@ import * as yaml from 'js-yaml';
 
 export class FluxDiagnosticProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
+    private diagnosticConfig: { [key: string]: boolean } = {};
+    private disposables: vscode.Disposable[] = [];
 
     constructor() {
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('flux-kustomize');
 
+        // Initialize config
+        this.updateConfiguration();
+
+        // Listen for configuration changes
+        this.disposables.push(
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('kustomizeNavigator.diagnostics')) {
+                    this.updateConfiguration();
+                    // Re-analyze all open documents
+                    vscode.workspace.textDocuments.forEach(this.analyzeDiagnostics, this);
+                }
+            })
+        );
+
         // Register event handlers
-        vscode.workspace.onDidOpenTextDocument(this.analyzeDiagnostics, this);
-        vscode.workspace.onDidChangeTextDocument(e => this.analyzeDiagnostics(e.document), this);
-        vscode.workspace.onDidCloseTextDocument(doc => {
-            this.diagnosticCollection.delete(doc.uri);
-        }, this);
+        this.disposables.push(
+            vscode.workspace.onDidOpenTextDocument(this.analyzeDiagnostics, this),
+            vscode.workspace.onDidChangeTextDocument(e => this.analyzeDiagnostics(e.document), this),
+            vscode.workspace.onDidCloseTextDocument(doc => {
+                this.diagnosticCollection.delete(doc.uri);
+            }, this)
+        );
 
         // Analyze open documents
         vscode.workspace.textDocuments.forEach(this.analyzeDiagnostics, this);
     }
 
+    private updateConfiguration() {
+        const config = vscode.workspace.getConfiguration('kustomizeNavigator.diagnostics');
+
+        // Get master toggle
+        const masterEnabled = config.get<boolean>('enabled', true);
+
+        // If master toggle is off, disable all checks
+        if (!masterEnabled) {
+            Object.keys(this.diagnosticConfig).forEach(key => {
+                this.diagnosticConfig[key] = false;
+            });
+            return;
+        }
+
+        // Otherwise, get individual check settings
+        const checksConfig = vscode.workspace.getConfiguration('kustomizeNavigator.diagnostics.checks');
+
+        // Update all check configurations
+        this.diagnosticConfig = {
+            resourceNaming: checksConfig.get<boolean>('resourceNaming', true),
+            namespaceRequired: checksConfig.get<boolean>('namespaceRequired', true),
+            recursiveDependencies: checksConfig.get<boolean>('recursiveDependencies', true),
+            imageTags: checksConfig.get<boolean>('imageTags', true),
+            securityIssues: checksConfig.get<boolean>('securityIssues', true),
+            fluxVersions: checksConfig.get<boolean>('fluxVersions', true),
+            gitopsComponents: checksConfig.get<boolean>('gitopsComponents', true),
+            performanceIssues: checksConfig.get<boolean>('performanceIssues', true),
+            variableSubstitution: checksConfig.get<boolean>('variableSubstitution', true),
+            indentation: checksConfig.get<boolean>('indentation', true)
+        };
+    }
     private analyzeDiagnostics(document: vscode.TextDocument) {
         // Only process YAML files
         if (!document.fileName.endsWith('.yaml') && !document.fileName.endsWith('.yml')) {
             return;
         }
+        // Clear existing diagnostics
+        this.diagnosticCollection.delete(document.uri);
 
+        // If all checks are disabled, exit early
+        if (Object.values(this.diagnosticConfig).every(enabled => !enabled)) {
+            return;
+        }
         const diagnostics: vscode.Diagnostic[] = [];
-
         try {
             const content = document.getText();
             let parsed = null;
@@ -37,33 +91,45 @@ export class FluxDiagnosticProvider {
                 // YAML parsing error - handled by VS Code's built-in YAML support
             }
 
-            // Run all the checks
-            this.checkVariableSubstitution(document, content, diagnostics);
-            this.checkExtendedVariableIssues(document, content, diagnostics);
-
-            if (parsed) {
-                this.checkResourceNaming(document, parsed, diagnostics);
-                this.checkNamespace(document, parsed, diagnostics);
-                this.checkRecursiveDependencies(document, parsed, diagnostics);
-                this.checkImageTags(document, parsed, diagnostics);
-                this.checkSecurityIssues(document, parsed, diagnostics);
-                this.checkFluxVersions(document, parsed, diagnostics);
-                this.checkGitOpsComponents(document, parsed, diagnostics);
-                this.checkPerformanceIssues(document, parsed, diagnostics);
-
-                // Check for Flux Kustomization issues
-                if (document.fileName.includes('kustomization') ||
-                    (parsed.apiVersion && parsed.apiVersion.includes('toolkit.fluxcd.io'))) {
-                    this.checkFluxKustomization(document, content, diagnostics);
-                }
+            // Run checks based on configuration
+            if (this.diagnosticConfig.variableSubstitution) {
+                this.checkVariableSubstitution(document, content, diagnostics);
+                this.checkExtendedVariableIssues(document, content, diagnostics);
             }
 
-            // Check YAML formatting regardless of parsing success
-            this.checkIndentation(document, diagnostics);
-
-            // Update diagnostics
-            this.diagnosticCollection.set(document.uri, diagnostics);
-
+            if (parsed) {
+                if (this.diagnosticConfig.resourceNaming) {
+                    this.checkResourceNaming(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.namespaceRequired) {
+                    this.checkNamespace(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.recursiveDependencies) {
+                    this.checkRecursiveDependencies(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.imageTags) {
+                    this.checkImageTags(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.securityIssues) {
+                    this.checkSecurityIssues(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.fluxVersions) {
+                    this.checkFluxVersions(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.gitopsComponents) {
+                    this.checkGitOpsComponents(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.performanceIssues) {
+                    this.checkPerformanceIssues(document, parsed, diagnostics);
+                }
+            }
+            if (this.diagnosticConfig.indentation) {
+                this.checkIndentation(document, diagnostics);
+            }
+            // Update diagnostics collection if we have any
+            if (diagnostics.length > 0) {
+                this.diagnosticCollection.set(document.uri, diagnostics);
+            }
         } catch (error) {
             console.error(`Error analyzing diagnostics for ${document.fileName}:`, error);
         }
@@ -632,5 +698,8 @@ export class FluxDiagnosticProvider {
     }
     public dispose() {
         this.diagnosticCollection.dispose();
+        for (const disposable of this.disposables) {
+            disposable.dispose();
+        }
     }
 }

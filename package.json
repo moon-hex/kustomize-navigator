@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate between Kustomize YAML files with ctrl+click",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "engines": {
     "vscode": ">=1.0.0"
   },
@@ -17,8 +17,33 @@
       {
         "command": "kustomize-navigator.parse",
         "title": "Parse Kustomization Folder"
+      },
+      {
+        "command": "kustomize-navigator.toggleAllChecks",
+        "title": "Kustomize Navigator: Toggle All Diagnostic Checks"
+      },
+      {
+        "command": "kustomize-navigator.resetChecksToDefault",
+        "title": "Kustomize Navigator: Reset Diagnostic Checks to Default"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kustomize-navigator",
+          "title": "Kustomize Navigator",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "kustomize-navigator": [
+        {
+          "id": "kustomize-navigator-settings",
+          "name": "Settings"
+        }
+      ]
+    }
   },
   "configuration": {
     "title": "Kustomize Navigator",
@@ -54,27 +79,57 @@
       "kustomizeNavigator.diagnostics.enabled": {
         "type": "boolean",
         "default": true,
-        "description": "Enable diagnostic warnings for Kustomize and Flux configuration issues"
+        "description": "Master toggle for all diagnostic checks"
       },
-      "kustomizeNavigator.diagnostics.securityChecks": {
+      "kustomizeNavigator.diagnostics.checks.resourceNaming": {
         "type": "boolean",
         "default": true,
-        "description": "Enable checks for Kubernetes security best practices"
+        "description": "Check if resource names follow Kubernetes naming conventions"
       },
-      "kustomizeNavigator.diagnostics.namingConventionChecks": {
+      "kustomizeNavigator.diagnostics.checks.namespaceRequired": {
         "type": "boolean",
         "default": true,
-        "description": "Check resource names against Kubernetes naming best practices"
+        "description": "Check if namespaced resources have a namespace specified"
       },
-      "kustomizeNavigator.hovers.showBackReferences": {
+      "kustomizeNavigator.diagnostics.checks.recursiveDependencies": {
         "type": "boolean",
         "default": true,
-        "description": "Show back references (files that reference the current file) in hovers"
+        "description": "Check for recursive dependencies in Flux kustomizations"
       },
-      "kustomizeNavigator.hovers.showResourcePreview": {
+      "kustomizeNavigator.diagnostics.checks.imageTags": {
         "type": "boolean",
         "default": true,
-        "description": "Show a preview of resources in target kustomization files when hovering references"
+        "description": "Check for hardcoded image tags or missing tags"
+      },
+      "kustomizeNavigator.diagnostics.checks.securityIssues": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check for common security issues like privileged containers"
+      },
+      "kustomizeNavigator.diagnostics.checks.fluxVersions": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check for deprecated Flux API versions"
+      },
+      "kustomizeNavigator.diagnostics.checks.gitopsComponents": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check if essential GitOps components are present"
+      },
+      "kustomizeNavigator.diagnostics.checks.performanceIssues": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check for configurations that might cause performance issues"
+      },
+      "kustomizeNavigator.diagnostics.checks.variableSubstitution": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check for Flux variable substitution issues"
+      },
+      "kustomizeNavigator.diagnostics.checks.indentation": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check for consistent YAML indentation"
       }
     }
   },

@@ -2,21 +2,50 @@
 import * as vscode from 'vscode';
 
 export class FluxVariableDecorator {
-    private readonly decorationType: vscode.TextEditorDecorationType;
+    private decorationType: vscode.TextEditorDecorationType; // Remove 'readonly'
     private readonly variablePattern = /\${([^}]+)}/g;
     private disposables: vscode.Disposable[] = [];
     
     constructor() {
-        // Create a decoration type for Flux variables
-        this.decorationType = vscode.window.createTextEditorDecorationType({
-            color: '#3498db', // Blue color for variables
-            fontWeight: 'bold',
-            border: '1px dotted #3498db',
-            backgroundColor: 'rgba(52, 152, 219, 0.1)'
-        });
+        // Initialize the decoration type
+        this.decorationType = this.createDecorationType();
         
         // Register handlers for document and editor events
         this.registerEventHandlers();
+        
+        // Listen for configuration changes
+        this.disposables.push(
+            vscode.workspace.onDidChangeConfiguration(e => {
+                if (e.affectsConfiguration('kustomizeNavigator.fluxVariableColor')) {
+                    // Dispose of the old decoration type
+                    const oldDecorationType = this.decorationType;
+                    
+                    // Create a new decoration type with the updated color
+                    this.decorationType = this.createDecorationType();
+                    
+                    // Update decorations for all visible editors
+                    vscode.window.visibleTextEditors.forEach(editor => {
+                        this.updateDecorations(editor);
+                    });
+                    
+                    // Dispose of the old decoration type after updating
+                    oldDecorationType.dispose();
+                }
+            })
+        );
+    }
+    
+    // Helper method to create a decoration type with current config
+    private createDecorationType(): vscode.TextEditorDecorationType {
+        const config = vscode.workspace.getConfiguration('kustomizeNavigator');
+        const highlightColor = config.get<string>('fluxVariableColor', '#3498db');
+        
+        return vscode.window.createTextEditorDecorationType({
+            color: highlightColor,
+            fontWeight: 'bold',
+            border: `1px dotted ${highlightColor}`,
+            backgroundColor: `${highlightColor}14` // 14 is hex for 8% opacity
+        });
     }
     
     private registerEventHandlers() {

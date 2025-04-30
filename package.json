@@ -31,7 +31,50 @@
       "kustomizeNavigator.fluxVariableColor": {
         "type": "string",
         "default": "#3498db",
+        "format": "color",
         "description": "Color to use for highlighting Flux variables"
+      },
+      "kustomizeNavigator.standardFluxVariables": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "cluster_env",
+          "cluster_region",
+          "cluster_name",
+          "namespace",
+          "app_name",
+          "git_branch",
+          "git_sha",
+          "deployment_name"
+        ],
+        "description": "List of standard Flux variables to suggest in autocompletion"
+      },
+      "kustomizeNavigator.diagnostics.enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable diagnostic warnings for Kustomize and Flux configuration issues"
+      },
+      "kustomizeNavigator.diagnostics.securityChecks": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable checks for Kubernetes security best practices"
+      },
+      "kustomizeNavigator.diagnostics.namingConventionChecks": {
+        "type": "boolean",
+        "default": true,
+        "description": "Check resource names against Kubernetes naming best practices"
+      },
+      "kustomizeNavigator.hovers.showBackReferences": {
+        "type": "boolean",
+        "default": true,
+        "description": "Show back references (files that reference the current file) in hovers"
+      },
+      "kustomizeNavigator.hovers.showResourcePreview": {
+        "type": "boolean",
+        "default": true,
+        "description": "Show a preview of resources in target kustomization files when hovering references"
       }
     }
   },

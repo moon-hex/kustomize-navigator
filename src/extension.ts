@@ -43,8 +43,16 @@ export async function activate(context: vscode.ExtensionContext) {
             hoverProvider
         );
 
-        // Register Flux variable decorator
-        const fluxDecorator = new FluxVariableDecorator();
+        // Check if variable highlighting is enabled in config
+        const config = vscode.workspace.getConfiguration('kustomizeNavigator');
+        const highlightEnabled = config.get<boolean>('highlightFluxVariables', true);
+
+        let fluxDecorator;
+        if (highlightEnabled) {
+            // Register Flux variable decorator
+            fluxDecorator = new FluxVariableDecorator();
+            context.subscriptions.push(fluxDecorator);
+        }
 
         // Register Flux variable completion provider
         const completionProvider = new FluxCompletionProvider();
@@ -63,7 +71,6 @@ export async function activate(context: vscode.ExtensionContext) {
             linkProviderDisposable,
             linkProvider,
             hoverProviderDisposable,
-            fluxDecorator,
             completionProviderDisposable,
             diagnosticProvider
         );

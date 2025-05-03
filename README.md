@@ -38,28 +38,6 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - `kustomizeNavigator.diagnostics.checks.variableSubstitution`: Check for Flux variable substitution issues (default: `true`)
 - `kustomizeNavigator.diagnostics.checks.indentation`: Check for consistent YAML indentation (default: `true`)
 
-## Extension Settings
-
-### General Settings
-
-- `kustomizeNavigator.highlightFluxVariables`: Enable/disable highlighting Flux variables (default: `true`)
-- `kustomizeNavigator.fluxVariableColor`: Color to use for highlighting Flux variables (default: `#3498db`)
-- `kustomizeNavigator.standardFluxVariables`: List of standard Flux variables to suggest in autocompletion
-
-### Diagnostic Checks
-
-- `kustomizeNavigator.diagnostics.enabled`: Master toggle for all diagnostic checks (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.resourceNaming`: Check resource names against Kubernetes naming conventions (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.namespaceRequired`: Check if namespaced resources have a namespace specified (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.recursiveDependencies`: Check for recursive dependencies in Flux kustomizations (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.imageTags`: Check for hardcoded image tags or missing tags (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.securityIssues`: Check for common security issues like privileged containers (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.fluxVersions`: Check for deprecated Flux API versions (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.gitopsComponents`: Check if essential GitOps components are present (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.performanceIssues`: Check for configurations that might cause performance issues (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.variableSubstitution`: Check for Flux variable substitution issues (default: `true`)
-- `kustomizeNavigator.diagnostics.checks.indentation`: Check for consistent YAML indentation (default: `true`)
-
 ## Known Issues
 
 - Remote Git references (like `github.com/...`) are not yet supported for navigation

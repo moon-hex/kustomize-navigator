@@ -11,6 +11,10 @@ export class FluxCompletionProvider implements vscode.CompletionItemProvider {
     // Add disposable to track configuration changes
     private disposables: vscode.Disposable[] = [];
 
+    // For debouncing
+    private scanTimeout: NodeJS.Timeout | undefined = undefined;
+    private readonly debounceDelay = 500; // ms
+
     constructor() {
         // Read the configuration
         this.updateConfiguration();
@@ -30,11 +34,21 @@ export class FluxCompletionProvider implements vscode.CompletionItemProvider {
         // Set up file watcher to update variables when files change
         const watcher = vscode.workspace.createFileSystemWatcher('**/*.{yaml,yml}');
         this.disposables.push(
-            watcher.onDidChange(() => this.scanWorkspaceForVariables()),
-            watcher.onDidCreate(() => this.scanWorkspaceForVariables()),
-            watcher.onDidDelete(() => this.scanWorkspaceForVariables()),
+            // With debouncing
+            watcher.onDidChange(() => this.debouncedScanWorkspace()),
+            watcher.onDidCreate(() => this.debouncedScanWorkspace()),
+            watcher.onDidDelete(() => this.debouncedScanWorkspace()),
             watcher
         );
+    }
+
+    private debouncedScanWorkspace() {
+        if (this.scanTimeout) {
+            clearTimeout(this.scanTimeout);
+        }
+        this.scanTimeout = setTimeout(() => {
+            this.scanWorkspaceForVariables();
+        }, this.debounceDelay);
     }
 
     private updateConfiguration() {
@@ -145,6 +159,9 @@ export class FluxCompletionProvider implements vscode.CompletionItemProvider {
     public dispose() {
         for (const disposable of this.disposables) {
             disposable.dispose();
+        }
+        if (this.scanTimeout) {
+            clearTimeout(this.scanTimeout);
         }
     }
 }

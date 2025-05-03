@@ -13,20 +13,6 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "kustomize-navigator.parse",
-        "title": "Parse Kustomization Folder"
-      },
-      {
-        "command": "kustomize-navigator.toggleAllChecks",
-        "title": "Kustomize Navigator: Toggle All Diagnostic Checks"
-      },
-      {
-        "command": "kustomize-navigator.resetChecksToDefault",
-        "title": "Kustomize Navigator: Reset Diagnostic Checks to Default"
-      }
-    ],
     "viewsContainers": {
       "activitybar": [
         {

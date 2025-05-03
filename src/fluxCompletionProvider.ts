@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 import * as fs from 'fs';
-import * as yaml from 'js-yaml';
 
 export class FluxCompletionProvider implements vscode.CompletionItemProvider {
     // Will store variables from configuration

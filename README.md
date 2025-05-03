@@ -60,11 +60,6 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - `kustomizeNavigator.diagnostics.checks.variableSubstitution`: Check for Flux variable substitution issues (default: `true`)
 - `kustomizeNavigator.diagnostics.checks.indentation`: Check for consistent YAML indentation (default: `true`)
 
-### Commands
-
-- `kustomize-navigator.toggleAllChecks`: Toggle all diagnostic checks on/off
-- `kustomize-navigator.resetChecksToDefault`: Reset all diagnostic checks to default (enabled)
-
 ## Known Issues
 
 - Remote Git references (like `github.com/...`) are not yet supported for navigation

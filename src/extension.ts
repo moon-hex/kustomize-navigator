@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { KustomizeFileWatcher } from './fileWatcher';
-import { KustomizeParser } from './kustomizeParser';
 import { KustomizeLinkProvider } from './linkProvider';
 import { KustomizeHoverProvider } from './hoverProvider';
 import { FluxVariableDecorator } from './fluxDecorator';
@@ -82,49 +81,6 @@ export async function activate(context: vscode.ExtensionContext) {
         console.log('Kustomize Navigator: No kustomization files found in workspace, disabling extension');
         fileWatcher.dispose();
     }
-    // Register commands for toggling diagnostic checks
-    const toggleAllChecksCommand = vscode.commands.registerCommand(
-        'kustomize-navigator.toggleAllChecks',
-        async () => {
-            const diagnosticsConfig = vscode.workspace.getConfiguration('kustomizeNavigator.diagnostics');
-            const currentState = diagnosticsConfig.get<boolean>('enabled', true);
-
-            // Toggle the master switch
-            await diagnosticsConfig.update('enabled', !currentState, vscode.ConfigurationTarget.Global);
-
-            vscode.window.showInformationMessage(
-                `Kustomize Navigator: All diagnostic checks ${!currentState ? 'enabled' : 'disabled'}`
-            );
-        }
-    );
-
-    const resetChecksCommand = vscode.commands.registerCommand(
-        'kustomize-navigator.resetChecksToDefault',
-        async () => {
-            const checksConfig = vscode.workspace.getConfiguration('kustomizeNavigator.diagnostics.checks');
-
-            // Reset all check configurations to default (true)
-            const checkKeys = [
-                'resourceNaming', 'namespaceRequired', 'recursiveDependencies',
-                'imageTags', 'securityIssues', 'fluxVersions', 'gitopsComponents',
-                'performanceIssues', 'variableSubstitution', 'indentation'
-            ];
-
-            for (const key of checkKeys) {
-                await checksConfig.update(key, true, vscode.ConfigurationTarget.Global);
-            }
-
-            // Also ensure master toggle is on
-            const diagnosticsConfig = vscode.workspace.getConfiguration('kustomizeNavigator.diagnostics');
-            await diagnosticsConfig.update('enabled', true, vscode.ConfigurationTarget.Global);
-
-            vscode.window.showInformationMessage(
-                'Kustomize Navigator: All diagnostic checks reset to default (enabled)'
-            );
-        }
-    );
-
-    context.subscriptions.push(toggleAllChecksCommand, resetChecksCommand);
 }
 
 export function deactivate() {

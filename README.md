@@ -42,6 +42,7 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 
 - Remote Git references (like `github.com/...`) are not yet supported for navigation
 - Missing files warning indicators are not showing in the tooltip
+- sometimes the extension is activating on yaml even if the working folder does not containe kustomization.y(a)ml
 
 ## Diagnostic Checks
 

@@ -10,6 +10,14 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         position: vscode.Position,
         token: vscode.CancellationToken
     ): Promise<vscode.Hover | null> {
+        // If position is at the very top of the document, show back references
+        if (position.line === 0 && position.character < 10) {
+            const backRefHover = await this.provideBackReferenceHover(document);
+            if (backRefHover) {
+                return backRefHover;
+            }
+        }
+        
         // Get the word at the cursor
         const wordRange = document.getWordRangeAtPosition(position);
         if (!wordRange) {
@@ -237,5 +245,31 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         }
 
         return null;
+    }
+    
+    private async provideBackReferenceHover(document: vscode.TextDocument): Promise<vscode.Hover | null> {
+        // Get back references
+        const backRefs = this.parser.getBackReferencesForFile(document.fileName);
+        
+        if (!backRefs || backRefs.length === 0) {
+            return null;
+        }
+        
+        // Create markdown for hover
+        const hoverContent = new vscode.MarkdownString();
+        hoverContent.isTrusted = true;
+        hoverContent.supportHtml = true;
+        
+        hoverContent.appendMarkdown(`### Referenced by ${backRefs.length} Kustomization file${backRefs.length > 1 ? 's' : ''}\n\n`);
+        
+        // Make each reference clickable
+        backRefs.forEach(ref => {
+            const refUri = vscode.Uri.file(ref);
+            const refName = path.basename(path.dirname(ref)) + '/' + path.basename(ref);
+            hoverContent.appendMarkdown(`- [\`${refName}\`](${refUri.toString()})\n`);
+        });
+        
+        // Return hover at the top of the document
+        return new vscode.Hover(hoverContent, new vscode.Range(0, 0, 0, 0));
     }
 }

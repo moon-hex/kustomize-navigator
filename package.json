@@ -28,8 +28,39 @@
           "id": "kustomize-navigator-settings",
           "name": "Settings"
         }
+      ],
+      "explorer": [
+        {
+          "id": "kustomizeReferences",
+          "name": "Kustomize References"
+        }
       ]
-    }
+    },
+    "viewsWelcome": [
+      {
+        "view": "kustomizeReferences",
+        "contents": "No active Kustomize file.\n[Open a Kustomize File](command:workbench.action.files.openFile)"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "kustomizeNavigator.openFile",
+          "when": "view == kustomizeReferences && viewItem =~ /kustomization|resource/"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kustomizeNavigator.openFile",
+        "title": "Open File"
+      },
+      {
+        "command": "kustomizeNavigator.refreshReferences",
+        "title": "Refresh References",
+        "icon": "$(refresh)"
+      }
+    ]
   },
   "configuration": {
     "title": "Kustomize Navigator",
@@ -38,11 +69,6 @@
         "type": "boolean",
         "default": true,
         "description": "Highlight Flux variable substitutions in YAML files"
-      },
-      "kustomizeNavigator.fluxDefaultValueColor": {
-        "type": "string",
-        "default": "#e67e22",
-        "description": "Color to use for highlighting default values in Flux variables"
       },
       "kustomizeNavigator.kustomizeApiColor": {
         "type": "string",

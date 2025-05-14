@@ -1,34 +1,21 @@
 {
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
-  "description": "Navigate between Kustomize YAML files with ctrl+click",
-  "version": "0.4.0",
+  "description": "Navigate between Kustomize files in Kubernetes GitOps repositories",
+  "version": "0.5.0",
   "engines": {
     "vscode": ">=1.0.0"
   },
-  "publisher": "MichalHajny",
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
     "workspaceContains:**/kustomization.yaml",
     "workspaceContains:**/kustomization.yml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "kustomize-navigator",
-          "title": "Kustomize Navigator",
-          "icon": "resources/icon.svg"
-        }
-      ]
-    },
     "views": {
-      "kustomize-navigator": [
-        {
-          "id": "kustomize-navigator-settings",
-          "name": "Settings"
-        }
-      ],
       "explorer": [
         {
           "id": "kustomizeReferences",
@@ -47,6 +34,25 @@
         {
           "command": "kustomizeNavigator.openFile",
           "when": "view == kustomizeReferences && viewItem =~ /kustomization|resource/"
+        },
+        {
+          "command": "kustomizeNavigator.visualizeDependencies",
+          "when": "view == kustomizeReferences && viewItem == 'kustomization'",
+          "group": "inline"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "kustomizeNavigator.refreshReferences",
+          "when": "view == kustomizeReferences",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "kustomizeNavigator.visualizeDependencies",
+          "when": "resourceExtname == .yaml || resourceExtname == .yml",
+          "group": "navigation"
         }
       ]
     },
@@ -59,118 +65,105 @@
         "command": "kustomizeNavigator.refreshReferences",
         "title": "Refresh References",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "kustomizeNavigator.visualizeDependencies",
+        "title": "Visualize Kustomize Dependencies",
+        "icon": "$(references)"
       }
-    ]
-  },
-  "configuration": {
-    "title": "Kustomize Navigator",
-    "properties": {
-      "kustomizeNavigator.highlightFluxVariables": {
-        "type": "boolean",
-        "default": true,
-        "description": "Highlight Flux variable substitutions in YAML files"
-      },
-      "kustomizeNavigator.kustomizeApiColor": {
-        "type": "string",
-        "default": "#27ae60",
-        "description": "Color to use for Kustomize API version labels"
-      },
-      "kustomizeNavigator.fluxApiColor": {
-        "type": "string",
-        "default": "#e74c3c",
-        "description": "Color to use for Flux API version labels"
-      },
-      "kustomizeNavigator.standardFluxVariables": {
-        "type": "array",
-        "items": {
-          "type": "string"
+    ],
+    "configuration": {
+      "title": "Kustomize Navigator",
+      "properties": {
+        "kustomizeNavigator.highlightFluxVariables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable highlighting of Flux variable substitutions"
         },
-        "default": [
-          "cluster_env",
-          "cluster_region",
-          "cluster_name",
-          "namespace",
-          "app_name",
-          "git_branch",
-          "git_sha",
-          "deployment_name"
-        ],
-        "description": "List of standard Flux variables to suggest in autocompletion"
-      },
-      "kustomizeNavigator.diagnostics.enabled": {
-        "type": "boolean",
-        "default": true,
-        "description": "Master toggle for all diagnostic checks"
-      },
-      "kustomizeNavigator.diagnostics.checks.resourceNaming": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check if resource names follow Kubernetes naming conventions"
-      },
-      "kustomizeNavigator.diagnostics.checks.namespaceRequired": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check if namespaced resources have a namespace specified"
-      },
-      "kustomizeNavigator.diagnostics.checks.recursiveDependencies": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for recursive dependencies in Flux kustomizations"
-      },
-      "kustomizeNavigator.diagnostics.checks.imageTags": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for hardcoded image tags or missing tags"
-      },
-      "kustomizeNavigator.diagnostics.checks.securityIssues": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for common security issues like privileged containers"
-      },
-      "kustomizeNavigator.diagnostics.checks.fluxVersions": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for deprecated Flux API versions"
-      },
-      "kustomizeNavigator.diagnostics.checks.gitopsComponents": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check if essential GitOps components are present"
-      },
-      "kustomizeNavigator.diagnostics.checks.performanceIssues": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for configurations that might cause performance issues"
-      },
-      "kustomizeNavigator.diagnostics.checks.variableSubstitution": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for Flux variable substitution issues"
-      },
-      "kustomizeNavigator.diagnostics.checks.indentation": {
-        "type": "boolean",
-        "default": true,
-        "description": "Check for consistent YAML indentation"
+        "kustomizeNavigator.fluxVariableColor": {
+          "type": "string",
+          "default": "#3498db",
+          "description": "Color to use for highlighting Flux variables"
+        },
+        "kustomizeNavigator.kustomizeApiColor": {
+          "type": "string",
+          "default": "#27ae60",
+          "description": "Color to use for Kustomize API version labels"
+        },
+        "kustomizeNavigator.fluxApiColor": {
+          "type": "string",
+          "default": "#e74c3c",
+          "description": "Color to use for Flux API version labels"
+        },
+        "kustomizeNavigator.standardFluxVariables": {
+          "type": "array",
+          "default": [
+            "cluster_env",
+            "cluster_region",
+            "cluster_name",
+            "namespace",
+            "app_name"
+          ],
+          "description": "Standard Flux variables to suggest in autocompletion"
+        },
+        "kustomizeNavigator.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable all diagnostic checks"
+        },
+        "kustomizeNavigator.diagnostics.checks.resourceNaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check resource names against Kubernetes naming conventions"
+        },
+        "kustomizeNavigator.diagnostics.checks.namespaceRequired": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check if namespaced resources have a namespace specified"
+        },
+        "kustomizeNavigator.diagnostics.checks.recursiveDependencies": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for recursive dependencies in Flux kustomizations"
+        },
+        "kustomizeNavigator.diagnostics.checks.imageTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for hardcoded image tags or missing tags"
+        },
+        "kustomizeNavigator.diagnostics.checks.securityIssues": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for common security issues like privileged containers"
+        },
+        "kustomizeNavigator.diagnostics.checks.fluxVersions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for deprecated Flux API versions"
+        },
+        "kustomizeNavigator.diagnostics.checks.gitopsComponents": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check if essential GitOps components are present"
+        },
+        "kustomizeNavigator.diagnostics.checks.performanceIssues": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for configurations that might cause performance issues"
+        },
+        "kustomizeNavigator.diagnostics.checks.variableSubstitution": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for Flux variable substitution issues"
+        },
+        "kustomizeNavigator.diagnostics.checks.indentation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for consistent YAML indentation"
+        }
       }
     }
   },
-  "categories": [
-    "Other"
-  ],
-  "keywords": [
-    "kubernetes",
-    "kustomize",
-    "kustomization",
-    "gitops",
-    "yaml",
-    "flux"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/mh185196_ncrvoyix/kustomize-navigator"
-  },
-  "icon": "images/vscode-extension-icon.png",
-  "license": "MIT",
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "webpack",
@@ -182,19 +175,35 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
+  "dependencies": {
+    "glob": "^10.3.10",
+    "js-yaml": "^4.1.0"
+  },
   "devDependencies": {
+    "@types/glob": "^10.0.0",
     "@types/js-yaml": "^4.0.9",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
-    "@types/vscode": "*",
-    "@typescript-eslint/eslint-plugin": "^8.28.0",
-    "@typescript-eslint/parser": "^8.28.0",
-    "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1",
-    "eslint": "^9.23.0",
-    "ts-loader": "^9.5.2",
-    "typescript": "^5.8.2",
-    "webpack": "^5.99.7",
-    "webpack-cli": "^6.0.1"
-  }
+    "@types/mocha": "^10.0.6",
+    "@types/node": "20.11.16",
+    "@types/vscode": "^1.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.1",
+    "@typescript-eslint/parser": "^7.0.1",
+    "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.56.0",
+    "mocha": "^10.2.0",
+    "typescript": "^5.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mh185196_ncrvoyix/kustomize-navigator.git"
+  },
+  "keywords": [
+    "kubernetes",
+    "kustomize",
+    "flux",
+    "gitops",
+    "devops",
+    "k8s"
+  ],
+  "publisher": "MichalHajny",
+  "license": "MIT"
 }

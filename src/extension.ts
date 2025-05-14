@@ -41,6 +41,7 @@ export async function activate(context: vscode.ExtensionContext) {
         { language: 'yaml' },
         linkProvider
     );
+    
 
     // Register hover provider
     const hoverProvider = new KustomizeHoverProvider(fileWatcher.getParser());
@@ -106,8 +107,22 @@ export async function activate(context: vscode.ExtensionContext) {
             'Kustomize Dependencies',
             vscode.ViewColumn.Beside,
             {
-                enableScripts: true
+                enableScripts: true,
+                retainContextWhenHidden: true
             }
+        );
+        
+        // Handle messages from the webview
+        panel.webview.onDidReceiveMessage(
+            message => {
+                switch (message.command) {
+                    case 'openFile':
+                        vscode.commands.executeCommand('vscode.open', vscode.Uri.file(message.filePath));
+                        return;
+                }
+            },
+            undefined,
+            context.subscriptions
         );
         
         // Generate graph data

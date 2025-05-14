@@ -4,3 +4,8 @@ node_modules
 .vscode-test/
 *.vsix
 output/*
+
+
+
+*.js
+*.js.map

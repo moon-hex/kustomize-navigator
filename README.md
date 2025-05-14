@@ -17,7 +17,7 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - **References Explorer**: View all forward and backward references in a dedicated panel
 - **Dependency Visualization**: Generate interactive visualizations of kustomization dependencies
 
-![Kustomize Navigator Demo](images/demo.png)
+![Kustomize Navigator Demo](https://raw.githubusercontent.com/yourusername/kustomize-navigator/main/images/demo.png)
 
 ## References Explorer
 
@@ -50,7 +50,11 @@ Kustomize Navigator visually distinguishes between different types of Kustomize 
 
 Visualize the relationships between your kustomization files with an interactive graph:
 
-- **Interactive Graph**: Click the "Visualize Kustomize Dependencies" button in the editor title bar
+- **Access the Visualization**: 
+  - Click the graph icon ($(references)) in the editor title bar when a YAML file is open
+  - Use the command palette (`Ctrl+Shift+P`) and search for "Visualize Kustomize Dependencies"
+  - Right-click on a file in the References Explorer and select "Visualize Dependencies"
+- **Interactive Graph**: The visualization opens in a new editor panel
 - **Color Coding**: Kustomization files and resources are color-coded for easy identification
 - **Navigation**: Double-click any node to open the corresponding file
 - **Hierarchical Layout**: Clearly see the dependency structure of your repository

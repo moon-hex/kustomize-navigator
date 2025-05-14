@@ -2,13 +2,16 @@
 import * as vscode from 'vscode';
 
 export class FluxVariableDecorator {
-    private decorationType: vscode.TextEditorDecorationType; // Remove 'readonly'
+    private variableDecorationType!: vscode.TextEditorDecorationType;
+    private defaultValueDecorationType!: vscode.TextEditorDecorationType;
+    private kustomizeDecorationType!: vscode.TextEditorDecorationType;
+    private fluxDecorationType!: vscode.TextEditorDecorationType;
     private readonly variablePattern = /\${([^}]+)}/g;
     private disposables: vscode.Disposable[] = [];
     
     constructor() {
-        // Initialize the decoration type
-        this.decorationType = this.createDecorationType();
+        // Initialize the decoration types
+        this.createDecorationTypes();
         
         // Register handlers for document and editor events
         this.registerEventHandlers();
@@ -16,36 +19,99 @@ export class FluxVariableDecorator {
         // Listen for configuration changes
         this.disposables.push(
             vscode.workspace.onDidChangeConfiguration(e => {
-                if (e.affectsConfiguration('kustomizeNavigator.fluxVariableColor')) {
-                    // Dispose of the old decoration type
-                    const oldDecorationType = this.decorationType;
+                if (e.affectsConfiguration('kustomizeNavigator.fluxVariableColor') ||
+                    e.affectsConfiguration('kustomizeNavigator.fluxDefaultValueColor') ||
+                    e.affectsConfiguration('kustomizeNavigator.fluxApiColor') ||
+                    e.affectsConfiguration('kustomizeNavigator.kustomizeApiColor')) {
                     
-                    // Create a new decoration type with the updated color
-                    this.decorationType = this.createDecorationType();
+                    // Dispose of the old decoration types
+                    this.disposeDecorationTypes();
+                    
+                    // Create new decoration types with the updated colors
+                    this.createDecorationTypes();
                     
                     // Update decorations for all visible editors
                     vscode.window.visibleTextEditors.forEach(editor => {
                         this.updateDecorations(editor);
                     });
-                    
-                    // Dispose of the old decoration type after updating
-                    oldDecorationType.dispose();
                 }
+            })
+        );
+        
+        // Listen for theme changes to adjust contrast
+        this.disposables.push(
+            vscode.window.onDidChangeActiveColorTheme(() => {
+                // Dispose of the old decoration types
+                this.disposeDecorationTypes();
+                
+                // Create new decoration types with the updated theme settings
+                this.createDecorationTypes();
+                
+                // Update decorations for all visible editors
+                vscode.window.visibleTextEditors.forEach(editor => {
+                    this.updateDecorations(editor);
+                });
             })
         );
     }
     
-    // Helper method to create a decoration type with current config
-    private createDecorationType(): vscode.TextEditorDecorationType {
+    // Helper method to create decoration types with current config
+    private createDecorationTypes(): void {
         const config = vscode.workspace.getConfiguration('kustomizeNavigator');
-        const highlightColor = config.get<string>('fluxVariableColor', '#3498db');
+        const isDarkTheme = vscode.window.activeColorTheme.kind === vscode.ColorThemeKind.Dark;
         
-        return vscode.window.createTextEditorDecorationType({
-            color: highlightColor,
+        // Variable colors
+        const variableColor = config.get<string>('fluxVariableColor', '#3498db');
+        const defaultValueColor = config.get<string>('fluxDefaultValueColor', '#e67e22');
+        
+        // API version colors
+        const kustomizeApiColor = config.get<string>('kustomizeApiColor', '#27ae60');
+        const fluxApiColor = config.get<string>('fluxApiColor', '#e74c3c');
+        
+        // Adjust opacity based on theme
+        const variableOpacity = isDarkTheme ? '08' : '14'; // Hex values: 8% for dark, 14% for light
+        const borderOpacity = isDarkTheme ? '40' : '80';   // Hex values: 25% for dark, 50% for light
+        
+        // Variable decoration
+        this.variableDecorationType = vscode.window.createTextEditorDecorationType({
+            color: variableColor,
             fontWeight: 'bold',
-            border: `1px dotted ${highlightColor}`,
-            backgroundColor: `${highlightColor}14` // 14 is hex for 8% opacity
+            border: `1px dotted ${variableColor}${borderOpacity}`,
+            backgroundColor: `${variableColor}${variableOpacity}`
         });
+        
+        // Default value decoration
+        this.defaultValueDecorationType = vscode.window.createTextEditorDecorationType({
+            color: defaultValueColor,
+            fontWeight: 'bold',
+            fontStyle: 'italic',
+            backgroundColor: `${defaultValueColor}${variableOpacity}`
+        });
+        
+        // Kustomize API version decoration
+        this.kustomizeDecorationType = vscode.window.createTextEditorDecorationType({
+            after: {
+                contentText: ' [Kustomize]',
+                color: kustomizeApiColor,
+                margin: '0 0 0 1em'
+            }
+        });
+        
+        // Flux API version decoration
+        this.fluxDecorationType = vscode.window.createTextEditorDecorationType({
+            after: {
+                contentText: ' [Flux]',
+                color: fluxApiColor,
+                margin: '0 0 0 1em'
+            }
+        });
+    }
+    
+    private disposeDecorationTypes(): void {
+        this.variableDecorationType.dispose();
+        this.defaultValueDecorationType.dispose();
+        this.kustomizeDecorationType.dispose();
+        this.fluxDecorationType.dispose();
     }
     
     private registerEventHandlers() {
@@ -81,22 +147,76 @@ export class FluxVariableDecorator {
         }
         
         const text = editor.document.getText();
-        const decorations: vscode.DecorationOptions[] = [];
+        const variableDecorations: vscode.DecorationOptions[] = [];
+        const defaultValueDecorations: vscode.DecorationOptions[] = [];
+        const kustomizeApiDecorations: vscode.DecorationOptions[] = [];
+        const fluxApiDecorations: vscode.DecorationOptions[] = [];
         
+        // Find and decorate variables
         let match;
         while ((match = this.variablePattern.exec(text))) {
-            const startPos = editor.document.positionAt(match.index);
-            const endPos = editor.document.positionAt(match.index + match[0].length);
+            const variableContent = match[1];
+            const fullMatch = match[0]; // Entire ${...} expression
             
-            const decoration = {
-                range: new vscode.Range(startPos, endPos),
-                hoverMessage: this.createHoverMessage(match[1])
-            };
-            
-            decorations.push(decoration);
+            // Check if variable has a default value
+            if (variableContent.includes(':=')) {
+                // Split into variable name and default value
+                const parts = variableContent.split(':=');
+                const variableName = parts[0].trim();
+                const defaultValue = parts[1].trim();
+                
+                // Position for the variable name part
+                const varNameStartPos = editor.document.positionAt(match.index + 2); // Skip ${
+                const varNameEndPos = editor.document.positionAt(match.index + 2 + variableName.length);
+                
+                // Position for the default value part including the := separator
+                const defaultStartPos = editor.document.positionAt(match.index + 2 + variableName.length);
+                const defaultEndPos = editor.document.positionAt(match.index + fullMatch.length - 1); // Skip closing }
+                
+                // Add decoration for variable name
+                variableDecorations.push({
+                    range: new vscode.Range(varNameStartPos, varNameEndPos),
+                    hoverMessage: this.createHoverMessage(variableContent)
+                });
+                
+                // Add decoration for default value with different styling
+                defaultValueDecorations.push({
+                    range: new vscode.Range(defaultStartPos, defaultEndPos),
+                    hoverMessage: this.createHoverMessage(variableContent)
+                });
+            } else {
+                // If no default value, decorate the whole variable
+                const startPos = editor.document.positionAt(match.index);
+                const endPos = editor.document.positionAt(match.index + fullMatch.length);
+                
+                variableDecorations.push({
+                    range: new vscode.Range(startPos, endPos),
+                    hoverMessage: this.createHoverMessage(variableContent)
+                });
+            }
         }
         
-        editor.setDecorations(this.decorationType, decorations);
+        // Find and decorate API versions
+        const apiVersionPattern = /apiVersion:\s*([^\n\r]+)/g;
+        while ((match = apiVersionPattern.exec(text))) {
+            const apiVersion = match[1].trim();
+            const startPos = editor.document.positionAt(match.index);
+            const endPos = editor.document.positionAt(match.index + match[0].length);
+            const range = new vscode.Range(startPos, endPos);
+            
+            // Check what type of API version it is
+            if (apiVersion.startsWith('kustomize.config.k8s.io/')) {
+                kustomizeApiDecorations.push({ range });
+            } else if (apiVersion.startsWith('kustomize.toolkit.fluxcd.io/')) {
+                fluxApiDecorations.push({ range });
+            }
+        }
+        
+        // Apply decorations
+        editor.setDecorations(this.variableDecorationType, variableDecorations);
+        editor.setDecorations(this.defaultValueDecorationType, defaultValueDecorations);
+        editor.setDecorations(this.kustomizeDecorationType, kustomizeApiDecorations);
+        editor.setDecorations(this.fluxDecorationType, fluxApiDecorations);
     }
     
     private createHoverMessage(variableContent: string): vscode.MarkdownString {
@@ -121,7 +241,7 @@ export class FluxVariableDecorator {
     }
     
     public dispose() {
-        this.decorationType.dispose();
+        this.disposeDecorationTypes();
         for (const disposable of this.disposables) {
             disposable.dispose();
         }

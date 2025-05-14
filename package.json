@@ -39,11 +39,20 @@
         "default": true,
         "description": "Highlight Flux variable substitutions in YAML files"
       },
-      "kustomizeNavigator.fluxVariableColor": {
+      "kustomizeNavigator.fluxDefaultValueColor": {
         "type": "string",
-        "default": "#3498db",
-        "format": "color",
-        "description": "Color to use for highlighting Flux variables"
+        "default": "#e67e22",
+        "description": "Color to use for highlighting default values in Flux variables"
+      },
+      "kustomizeNavigator.kustomizeApiColor": {
+        "type": "string",
+        "default": "#27ae60",
+        "description": "Color to use for Kustomize API version labels"
+      },
+      "kustomizeNavigator.fluxApiColor": {
+        "type": "string",
+        "default": "#e74c3c",
+        "description": "Color to use for Flux API version labels"
       },
       "kustomizeNavigator.standardFluxVariables": {
         "type": "array",

@@ -13,8 +13,47 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - **Variable Autocompletion**: Suggests variables when typing `${` based on workspace usage
 - **Intelligent Diagnostics**: Identifies common configuration issues in Kubernetes and Flux manifests
 - **Customizable Checks**: Toggle individual diagnostic checks through settings
+- **API Version Distinction**: Visually distinguish between standard Kustomize and Flux-extended APIs
+- **References Explorer**: View all forward and backward references in a dedicated panel
+- **Dependency Visualization**: Generate interactive visualizations of kustomization dependencies
 
 ![Kustomize Navigator Demo](images/demo.png)
+
+## References Explorer
+
+The References Explorer panel provides a comprehensive view of all relationships between your Kustomize files:
+
+- **Kustomization References**: Shows other kustomization files that the current file references
+- **Resource References**: Shows regular YAML resources that the current file references
+- **Referenced By**: Shows which kustomization files reference the current file
+
+This helps you understand the hierarchy and dependencies in your GitOps repository. Each reference is displayed with its parent folder for context, and clicking any reference opens the file directly.
+
+## Variable Highlighting
+
+The extension provides enhanced visibility for Flux variable substitutions:
+
+- **Variable Names**: Highlighted with a configurable color
+- **Default Values**: Highlighted with a different color and style
+- **Hover Information**: Detailed information about variables and their default values
+- **Auto-completion**: Suggests variables based on usage throughout your workspace
+
+## API Version Labeling
+
+Kustomize Navigator visually distinguishes between different types of Kustomize API versions:
+
+- Standard Kustomize files show a `[Kustomize]` label
+- Flux-extended files show a `[Flux]` label
+- Each label uses a different color for quick identification
+
+## Dependency Visualization
+
+Visualize the relationships between your kustomization files with an interactive graph:
+
+- **Interactive Graph**: Click the "Visualize Kustomize Dependencies" button in the editor title bar
+- **Color Coding**: Kustomization files and resources are color-coded for easy identification
+- **Navigation**: Double-click any node to open the corresponding file
+- **Hierarchical Layout**: Clearly see the dependency structure of your repository
 
 ## Extension Settings
 
@@ -22,6 +61,9 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 
 - `kustomizeNavigator.highlightFluxVariables`: Enable/disable highlighting Flux variables (default: `true`)
 - `kustomizeNavigator.fluxVariableColor`: Color to use for highlighting Flux variables (default: `#3498db`)
+- `kustomizeNavigator.fluxDefaultValueColor`: Color to use for highlighting default values in Flux variables (default: `#e67e22`)
+- `kustomizeNavigator.kustomizeApiColor`: Color to use for Kustomize API version labels (default: `#27ae60`)
+- `kustomizeNavigator.fluxApiColor`: Color to use for Flux API version labels (default: `#e74c3c`)
 - `kustomizeNavigator.standardFluxVariables`: List of standard Flux variables to suggest in autocompletion
 
 ### Diagnostic Checks
@@ -67,12 +109,33 @@ The extension analyzes your YAML files for common issues and best practices:
 
 ## Release Notes
 
-### 0.1.0
+### 0.5.0
 
-Initial release
-- Ctrl+click navigation between Kustomize files
-- Warning indicators for missing files
-- Support for identifying Kustomize content regardless of filename
+Improvements
+- Added References Explorer panel showing forward and backward references
+- Enhanced references view with categorization by type (kustomization vs. resource)
+- Added file context with parent folder names in references view
+- Added dependency visualization with interactive graph view
+- Fixed activation issue to only initialize when kustomization files are present
+- Added visual distinction between Kustomize and Flux API versions
+- Improved variable highlighting with lower contrast in dark themes
+- Added different styling for default values in Flux variables
+
+### 0.4.0
+
+Improvements
+- Added various diagnostic and security checks
+- Added configuration options for customizing extension behavior
+
+### 0.3.0
+
+Improvements
+- Added support for decoration of post-build substitution variables in Flux
+
+### 0.2.1
+
+Bug Fixes
+- VS Code engine version constraint: Changed from "^1.99.0" to ">=1.0.0"
 
 ### 0.2.0
 
@@ -86,21 +149,12 @@ Bug Fixes
 - Corrected path resolution for directory-based kustomization files
 - Fixed handling of various Kustomize file formats
 
-### 0.2.1
+### 0.1.0
 
-Bug Fixes
-- VS Code engine version constraint: Changed from "^1.99.0" to ">=1.0.0"
-
-### 0.3.0
-
-Improvements
-- Added support for decoration of post-build substitution variables in Flux
-
-### 0.4.0
-
-Improvements
-- Added various diagnostic and security checks
-- Added configuration options for customizing extension behavior
+Initial release
+- Ctrl+click navigation between Kustomize files
+- Warning indicators for missing files
+- Support for identifying Kustomize content regardless of filename
 
 ## Contributing
 

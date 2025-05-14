@@ -88,6 +88,7 @@ Visualize the relationships between your kustomization files with an interactive
 
 - Remote Git references (like `github.com/...`) are not yet supported for navigation
 - Missing files warning indicators are not showing in the tooltip
+- sometimes the extension is activating on yaml even if the working folder does not containe kustomization.y(a)ml
 
 ## Diagnostic Checks
 

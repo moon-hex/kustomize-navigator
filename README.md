@@ -17,7 +17,10 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - **References Explorer**: View all forward and backward references in a dedicated panel
 - **Dependency Visualization**: Generate interactive visualizations of kustomization dependencies
 
-![Kustomize Navigator Demo](https://raw.githubusercontent.com/yourusername/kustomize-navigator/main/images/demo.png)
+![Kustomize Navigator Demo](https://github.com/moon-hex/kustomize_navigator_resources/blob/main/demo.png?raw=true)
+
+Dependency Navigation tab
+![Kustomize Navigator Dependency Tab](https://github.com/moon-hex/kustomize_navigator_resources/blob/main/display_dependency_graph.png?raw=true)
 
 ## References Explorer
 
@@ -113,6 +116,11 @@ The extension analyzes your YAML files for common issues and best practices:
 - Performance optimization suggestions
 
 ## Release Notes
+
+### 0.5.1
+
+Improvements
+- Fixed images in documentation
 
 ### 0.5.0
 

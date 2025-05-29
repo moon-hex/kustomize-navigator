@@ -19,3 +19,6 @@ npm run compile
 
 # Step 2: Package the extension into a VSIX file and output it to the './output' directory.
 vsce package --out ./output
+
+# Manage Extensions
+# https://marketplace.visualstudio.com/manage/publishers/michalhajny

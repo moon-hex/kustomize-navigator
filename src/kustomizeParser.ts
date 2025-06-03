@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { glob } from 'glob';
+import { execSync } from 'child_process';
 
 // Interface for parsed kustomization file
 export interface KustomizationPatch {
@@ -43,7 +44,38 @@ export class KustomizeParser {
         fileBackReferences: new Map<string, string[]>()
     };
 
+    // Cache for Git root detection
+    private gitRootCache = new Map<string, string>();
+
     constructor(private workspaceRoot: string) { }
+
+    /**
+     * Find Git repository root for a given file path
+     */
+    private findGitRoot(filePath: string): string {
+        const cacheKey = path.dirname(filePath);
+
+        // Check cache first
+        if (this.gitRootCache.has(cacheKey)) {
+            return this.gitRootCache.get(cacheKey)!;
+        }
+
+        try {
+            const result = execSync('git rev-parse --show-toplevel', {
+                cwd: path.dirname(filePath),
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore']
+            });
+            const gitRoot = result.trim();
+            this.gitRootCache.set(cacheKey, gitRoot);
+            return gitRoot;
+        } catch (error) {
+            // Fallback to workspace root if git command fails
+            console.warn(`Git command failed for ${filePath}, using workspace root`);
+            this.gitRootCache.set(cacheKey, this.workspaceRoot);
+            return this.workspaceRoot;
+        }
+    }
 
     /**
      * Check if a YAML file is a Kustomize file by examining its content
@@ -87,9 +119,10 @@ export class KustomizeParser {
             return false;
         }
     }
+
     /**
     * Check if a file is a Flux Kustomization CR specifically
-    */
+     */
     public isFluxKustomizationFile(filePath: string): boolean {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
@@ -108,6 +141,7 @@ export class KustomizeParser {
             return false;
         }
     }
+
     /**
      * Find all kustomization files in the workspace
      */
@@ -152,7 +186,7 @@ export class KustomizeParser {
     // [remaining code is identical to the previous implementation]
 
     /**
-     * Parse a single kustomization file
+     * Parse a kustomization file (handles both types)
      */
     public parseKustomizationFile(filePath: string): KustomizationFile | null {
         try {
@@ -165,7 +199,8 @@ export class KustomizeParser {
 
             // Handle Flux Kustomization CR
             if (this.isFluxKustomizationFile(filePath)) {
-                return this.parseFluxKustomization(filePath, parsed);
+                const result = this.parseFluxKustomization(filePath, parsed);
+                return result ? result.kustomization : null;
             }
 
             // Handle standard kustomization.yaml
@@ -177,54 +212,119 @@ export class KustomizeParser {
     }
 
     /**
-     * Parse a Flux Kustomization CR
+     * Get resolved references for a Flux Kustomization CR
      */
-    private parseFluxKustomization(filePath: string, parsed: any): KustomizationFile | null {
+    private getFluxResolvedReferences(filePath: string): string[] {
+        try {
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            const parsed = yaml.load(fileContent) as any;
+
+            if (!parsed || !this.isFluxKustomizationFile(filePath)) {
+                return [];
+            }
+
+            const result = this.parseFluxKustomization(filePath, parsed);
+            return result ? result.resolvedReferences : [];
+        } catch (error) {
+            console.log(`Error getting Flux references for ${filePath}:`, error);
+            return [];
+        }
+    }
+
+    /**
+     * Parse a Flux Kustomization CR with Git root-relative path resolution
+     */
+    private parseFluxKustomization(filePath: string, parsed: any): { kustomization: KustomizationFile; resolvedReferences: string[] } | null {
         if (!parsed.spec) {
             return null;
         }
 
         const spec = parsed.spec;
+        const references: string[] = [];
 
-        return {
+        // Handle spec.path - resolve relative to Git root
+        if (spec.path && typeof spec.path === 'string') {
+            const resolvedPath = this.resolveReference(filePath, spec.path);
+
+            // Check if path points to directory with kustomization.yaml
+            if (this.isDirectory(resolvedPath)) {
+                const kustomizationYaml = path.join(resolvedPath, 'kustomization.yaml');
+                const kustomizationYml = path.join(resolvedPath, 'kustomization.yml');
+
+                if (this.fileExists(kustomizationYaml)) {
+                    references.push(kustomizationYaml);
+                } else if (this.fileExists(kustomizationYml)) {
+                    references.push(kustomizationYml);
+                }
+            } else if (this.fileExists(resolvedPath)) {
+                references.push(resolvedPath);
+            }
+        }
+
+        // Handle patches - also resolve relative to Git root
+        const processPatchReferences = (patches: any[]) => {
+            patches.forEach(patch => {
+                let patchPath: string | undefined;
+
+                if (typeof patch === 'string') {
+                    patchPath = patch;
+                } else if (patch && typeof patch === 'object' && patch.path) {
+                    patchPath = patch.path;
+                }
+
+                if (patchPath) {
+                    const resolvedPath = this.resolveReference(filePath, patchPath);
+                    if (this.fileExists(resolvedPath)) {
+                        references.push(resolvedPath);
+                    }
+                }
+            });
+        };
+
+        if (Array.isArray(spec.patches)) {
+            processPatchReferences(spec.patches);
+        }
+        if (Array.isArray(spec.patchesStrategicMerge)) {
+            processPatchReferences(spec.patchesStrategicMerge);
+        }
+        if (Array.isArray(spec.patchesJson6902)) {
+            processPatchReferences(spec.patchesJson6902);
+        }
+
+        const kustomization: KustomizationFile = {
             filePath,
-            // Flux Kustomizations reference a path in a source, not direct file references
-            // But they can have patches and other references
-            resources: [], // Flux Kustomizations don't directly list resources
-            bases: [], // Flux uses sourceRef instead of bases
+            resources: [],
+            bases: [],
             patches: Array.isArray(spec.patches) ? spec.patches : [],
             patchesStrategicMerge: Array.isArray(spec.patchesStrategicMerge) ? spec.patchesStrategicMerge : [],
             patchesJson6902: Array.isArray(spec.patchesJson6902) ? spec.patchesJson6902 : [],
             components: Array.isArray(spec.components) ? spec.components : [],
-            configurations: [], // Not typically used in Flux Kustomizations
-            crds: [], // Not typically used in Flux Kustomizations
-            generators: [], // Not typically used in Flux Kustomizations
-            transformers: [], // Not typically used in Flux Kustomizations
+            configurations: [],
+            crds: [],
+            generators: [],
+            transformers: [],
         };
+
+        return { kustomization, resolvedReferences: references };
     }
 
     /**
-     * Resolve a relative path reference from a kustomization file
+     * Resolve reference path based on file type
      */
     private resolveReference(basePath: string, reference: string): string {
-        // Handle both file and directory references
-        const baseDir = path.dirname(basePath);
-        const resolvedPath = path.resolve(baseDir, reference);
+        const isFluxKustomization = this.isFluxKustomizationFile(basePath);
 
-        // Check if it's a directory reference that might point to a kustomization file
-        if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isDirectory()) {
-            const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
-            const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
-
-            if (fs.existsSync(kustomizationPath)) {
-                return kustomizationPath;
-            } else if (fs.existsSync(kustomizationPathYml)) {
-                return kustomizationPathYml;
-            }
+        if (isFluxKustomization) {
+            // For Flux Kustomization CRs, resolve relative to Git repository root
+            const gitRoot = this.findGitRoot(basePath);
+            return path.resolve(gitRoot, reference);
+        } else {
+            // For standard kustomization files, resolve relative to file location
+            const baseDir = path.dirname(basePath);
+            return path.resolve(baseDir, reference);
         }
-
-        return resolvedPath;
     }
+
     /**
      * Parse a standard kustomization.yaml file
      */
@@ -243,8 +343,9 @@ export class KustomizeParser {
             transformers: Array.isArray(parsed.transformers) ? parsed.transformers : [],
         };
     }
+
     /**
-     * Build the reference map for all kustomization files
+     * Enhanced build reference map with Flux support
      */
     public async buildReferenceMap(): Promise<KustomizeReferenceMap> {
         this.referenceMap = {
@@ -258,54 +359,57 @@ export class KustomizeParser {
             const kustomization = this.parseKustomizationFile(filePath);
             if (!kustomization) continue;
 
-            const references: string[] = [];
+            let references: string[] = [];
 
-            // Process all reference types
-            const addReferences = (paths: (string | KustomizationPatch)[]) => {
-                for (const refPath of paths) {
-                    try {
-                        // Handle both string and object paths
-                        let resolvedPath;
-                        if (typeof refPath === 'string') {
-                            resolvedPath = this.resolveReference(filePath, refPath);
-                        } else if (refPath && typeof refPath === 'object' && refPath.path) {
-                            resolvedPath = this.resolveReference(filePath, refPath.path);
-                        } else {
-                            // Skip invalid references
-                            continue;
+            if (this.isFluxKustomizationFile(filePath)) {
+                // For Flux CRs, get the resolved references using separate method
+                references = this.getFluxResolvedReferences(filePath);
+            } else {
+                // For standard kustomizations, process normally
+                const addReferences = (paths: (string | KustomizationPatch)[]) => {
+                    for (const refPath of paths) {
+                        try {
+                            let resolvedPath;
+                            if (typeof refPath === 'string') {
+                                resolvedPath = this.resolveReference(filePath, refPath);
+                            } else if (refPath && typeof refPath === 'object' && refPath.path) {
+                                resolvedPath = this.resolveReference(filePath, refPath.path);
+                            } else {
+                                continue;
+                            }
+                            references.push(resolvedPath);
+                        } catch (error) {
+                            console.warn(`Failed to resolve reference from ${filePath}:`, error);
                         }
-
-                        references.push(resolvedPath);
-
-                        // Update back-references
-                        if (!this.referenceMap.fileBackReferences.has(resolvedPath)) {
-                            this.referenceMap.fileBackReferences.set(resolvedPath, []);
-                        }
-                        this.referenceMap.fileBackReferences.get(resolvedPath)!.push(filePath);
-                    } catch (error) {
-                        console.warn(`Failed to resolve reference ${JSON.stringify(refPath)} from ${filePath}:`, error);
                     }
-                }
-            };
+                };
 
-            // Add all reference types
-            addReferences(kustomization.resources);
-            addReferences(kustomization.bases);
-            addReferences(kustomization.components);
-            addReferences(kustomization.patches);
-            addReferences(kustomization.patchesStrategicMerge);
-            addReferences(kustomization.configurations);
-            addReferences(kustomization.crds);
+                // Add all reference types
+                addReferences(kustomization.resources);
+                addReferences(kustomization.bases);
+                addReferences(kustomization.components);
+                addReferences(kustomization.patches);
+                addReferences(kustomization.patchesStrategicMerge);
+                addReferences(kustomization.configurations);
+                addReferences(kustomization.crds);
 
-            // Handle JSON 6902 patches which have a path field
-            kustomization.patchesJson6902.forEach(patch => {
-                if (patch.path) {
-                    addReferences([patch.path]);
-                }
-            });
+                // Handle JSON 6902 patches which have a path field
+                kustomization.patchesJson6902.forEach(patch => {
+                    if (patch.path) {
+                        addReferences([patch.path]);
+                    }
+                });
+            }
 
-            // Store references for this file
+            // Store references and update back-references
             this.referenceMap.fileReferences.set(filePath, references);
+
+            references.forEach(resolvedPath => {
+                if (!this.referenceMap.fileBackReferences.has(resolvedPath)) {
+                    this.referenceMap.fileBackReferences.set(resolvedPath, []);
+                }
+                this.referenceMap.fileBackReferences.get(resolvedPath)!.push(filePath);
+            });
         }
 
         return this.referenceMap;

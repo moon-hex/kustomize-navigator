@@ -117,6 +117,11 @@ The extension analyzes your YAML files for common issues and best practices:
 
 ## Release Notes
 
+### 0.6.1
+
+Improvements
+- Fixed path resolution for repositories where Flux CRs reference resources using Git root-relative paths
+
 ### 0.6.0
 
 New Features

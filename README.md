@@ -115,78 +115,59 @@ The extension analyzes your YAML files for common issues and best practices:
 - Essential GitOps component verification
 - Performance optimization suggestions
 
-## Release Notes
+# Release Notes
 
-### 0.6.1
+## 0.6.2
 
-Improvements
-- Fixed path resolution for repositories where Flux CRs reference resources using Git root-relative paths
+**Improvements**
+- **Enhanced Flux Path Navigation**: Clicking on `path` references in Flux Kustomization CRs now properly opens the target `kustomization.yaml` file instead of the directory
+- **Smart Directory Resolution**: When Flux paths point to directories, automatically detects and opens the kustomization file within
+- **Improved Tooltips**: Better visual feedback showing exactly which file will be opened when clicking Flux path references
 
-### 0.6.0
+## 0.6.1
 
-New Features
-- **Flux Kustomization CR Support**: Extension now detects and processes Flux Kustomization Custom Resources
-- **Enhanced File Detection**: Intelligently scans all YAML files to find Flux Kustomization CRs
-- **Bidirectional Flux References**: Shows when Flux Kustomization CRs reference your resources
-- **Updated File Watching**: Monitors all YAML files for Flux Kustomization changes
-- **Improved References View**: Displays both standard kustomization files and Flux CRs in the references panel
+**Improvements**
+- **Fixed Git Root Path Resolution**: Corrected path resolution for Flux Kustomization CRs to use Git repository root instead of file-relative paths, ensuring proper navigation in GitOps repositories
 
-Improvements
-- Better support for mixed GitOps repositories using both standard Kustomize and Flux
-- Enhanced documentation with Flux-specific examples
-- More comprehensive work
+## 0.6.0
 
-### 0.5.1
+**New Features**
+- **Flux Kustomization CR Support**: Full detection and processing of Flux Kustomization Custom Resources (`kustomize.toolkit.fluxcd.io`)
+- **Enhanced YAML File Scanning**: Intelligently scans all YAML files to automatically discover Flux Kustomization CRs
+- **Bidirectional Flux References**: Complete reference tracking showing which Flux CRs reference your resources and vice versa
+- **GitOps-Aware File Watching**: Monitors all YAML files for changes to Flux Kustomization definitions
+- **Unified References View**: Single panel displaying both standard kustomization files and Flux CRs with proper categorization
 
-Improvements
-- Fixed images in documentation
+**Improvements**
+- **Mixed Repository Support**: Seamless navigation in repositories using both standard Kustomize and Flux CD
+- **Enhanced Documentation**: Added Flux-specific usage examples and best practices
 
-### 0.5.0
+## Pre-0.6.0 Feature Summary
 
-Improvements
-- Added References Explorer panel showing forward and backward references
-- Enhanced references view with categorization by type (kustomization vs. resource)
-- Added file context with parent folder names in references view
-- Added dependency visualization with interactive graph view
-- Fixed activation issue to only initialize when kustomization files are present
-- Added visual distinction between Kustomize and Flux API versions
-- Improved variable highlighting with lower contrast in dark themes
-- Added different styling for default values in Flux variables
+**Core Navigation Features**
+- **References Explorer Panel**: Comprehensive view of forward and backward references between kustomization files
+- **Categorized References**: Smart grouping by type (kustomization vs. resource files) with parent folder context
+- **Interactive Dependency Graph**: Visual representation of kustomization dependencies with clickable navigation
+- **Ctrl+Click Navigation**: Direct file-to-file navigation between kustomization references
+- **Resource Preview on Hover**: See complete resource lists when hovering over kustomization references
+- **Clickable Resource Lists**: Direct navigation to individual resources from hover previews
 
-### 0.4.0
+**Content-Aware Detection**
+- **Smart Kustomization Detection**: Identifies kustomization files by content analysis, not just filename patterns
+- **Flexible File Support**: Works with any YAML file containing valid kustomization structure
+- **Missing File Warnings**: Visual indicators and diagnostics for broken references
 
-Improvements
-- Added various diagnostic and security checks
-- Added configuration options for customizing extension behavior
+**Flux CD Integration**
+- **Variable Substitution Support**: Syntax highlighting and completion for Flux post-build variables (`${var}`, `${var:=default}`)
+- **API Version Decorations**: Visual distinction between standard Kustomize and Flux CD API versions
+- **Theme-Aware Highlighting**: Adaptive contrast for variable highlighting in light and dark themes
+- **Flux Diagnostics**: Comprehensive validation for Flux-specific configurations and best practices
 
-### 0.3.0
-
-Improvements
-- Added support for decoration of post-build substitution variables in Flux
-
-### 0.2.1
-
-Bug Fixes
-- VS Code engine version constraint: Changed from "^1.99.0" to ">=1.0.0"
-
-### 0.2.0
-
-Improvements
-- Enhanced Kustomize detection: Now identifies Kustomize files by content, not just filename
-- Resource Preview: Hover over Kustomize references to see a list of resources defined in the target file
-- Clickable Resource List: Each resource in the preview is clickable for direct navigation
-
-Bug Fixes
-- Fixed link detection for unquoted YAML references
-- Corrected path resolution for directory-based kustomization files
-- Fixed handling of various Kustomize file formats
-
-### 0.1.0
-
-Initial release
-- Ctrl+click navigation between Kustomize files
-- Warning indicators for missing files
-- Support for identifying Kustomize content regardless of filename
+**Developer Experience**
+- **Configurable Behavior**: Extensive settings for customizing extension appearance and functionality
+- **Performance Optimized**: Only activates when kustomization files are detected in workspace
+- **Broad Compatibility**: Supports VS Code 1.0.0+ with engine constraint optimizations
+- **Comprehensive Validation**: Built-in checks for security issues, performance problems, and configuration errors
 
 ## Contributing
 

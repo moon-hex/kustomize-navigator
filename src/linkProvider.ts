@@ -2,10 +2,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
+import { execSync } from 'child_process';
 import { KustomizeParser } from './kustomizeParser';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
+    private gitRootCache = new Map<string, string>();
 
     constructor(private parser: KustomizeParser) {
         // Create a diagnostic collection for this provider
@@ -35,12 +37,17 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 return links;
             }
 
-            // Check if this is a kustomization file
-            const isKustomizationFile = path.basename(document.fileName).match(/^kustomization\.ya?ml$/);
+            // Check if this is a Flux Kustomization CR
+            const isFluxKustomization = this.parser.isFluxKustomizationFile(document.fileName);
 
-            if (isKustomizationFile) {
-                console.log(`Processing kustomization file: ${document.fileName}`);
-                // Process kustomization.yaml references
+            // Check if this is a standard kustomization file
+            const isStandardKustomization = path.basename(document.fileName).match(/^kustomization\.ya?ml$/);
+
+            if (isFluxKustomization) {
+                console.log(`Processing Flux Kustomization CR: ${document.fileName}`);
+                await this.processFluxKustomizationReferences(document, content, links, diagnostics);
+            } else if (isStandardKustomization) {
+                console.log(`Processing standard kustomization file: ${document.fileName}`);
                 await this.processKustomizationReferences(document, content, links, diagnostics);
             } else {
                 console.log(`Processing non-kustomization file: ${document.fileName}`);
@@ -59,6 +66,68 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         return links;
     }
 
+    /**
+     * Process Flux Kustomization CR references (spec.path, patches, etc.)
+     */
+    private async processFluxKustomizationReferences(
+        document: vscode.TextDocument,
+        content: any,
+        links: vscode.DocumentLink[],
+        diagnostics: vscode.Diagnostic[]
+    ): Promise<void> {
+        if (!content.spec) {
+            return;
+        }
+
+        const spec = content.spec;
+
+        // Process spec.path - THIS IS THE KEY FIX
+        if (spec.path && typeof spec.path === 'string') {
+            await this.addFluxLinkForReference(document, 'path', spec.path, links, diagnostics);
+        }
+
+        // Process patches
+        if (Array.isArray(spec.patches)) {
+            for (const patch of spec.patches) {
+                if (typeof patch === 'string') {
+                    await this.addFluxLinkForReference(document, 'patches', patch, links, diagnostics);
+                } else if (patch && typeof patch === 'object' && patch.path) {
+                    await this.addFluxLinkForReference(document, 'patches', patch.path, links, diagnostics);
+                }
+            }
+        }
+
+        // Process patchesStrategicMerge
+        if (Array.isArray(spec.patchesStrategicMerge)) {
+            for (const patch of spec.patchesStrategicMerge) {
+                if (typeof patch === 'string') {
+                    await this.addFluxLinkForReference(document, 'patchesStrategicMerge', patch, links, diagnostics);
+                }
+            }
+        }
+
+        // Process patchesJson6902
+        if (Array.isArray(spec.patchesJson6902)) {
+            for (const patch of spec.patchesJson6902) {
+                if (patch && typeof patch === 'object' && patch.path) {
+                    await this.addFluxLinkForReference(document, 'patchesJson6902', patch.path, links, diagnostics);
+                }
+            }
+        }
+
+        // Process components
+        if (Array.isArray(spec.components)) {
+            for (const component of spec.components) {
+                if (typeof component === 'string') {
+                    await this.addFluxLinkForReference(document, 'components', component, links, diagnostics);
+                }
+            }
+        }
+    }
+
+    /**
+     * Process standard kustomization.yaml references
+     */
     private async processKustomizationReferences(
         document: vscode.TextDocument,
         content: any,
@@ -84,7 +153,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             if (Array.isArray(content[field])) {
                 console.log(`Found ${content[field].length} entries in ${field}`);
                 for (const reference of content[field]) {
-                    await this.addLinkForReference(document, reference, baseDir, links, diagnostics);
+                    await this.addStandardLinkForReference(document, reference, baseDir, links, diagnostics);
                 }
             }
         }
@@ -93,12 +162,15 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         if (Array.isArray(content.patchesJson6902)) {
             for (const patch of content.patchesJson6902) {
                 if (patch.path) {
-                    await this.addLinkForReference(document, patch.path, baseDir, links, diagnostics);
+                    await this.addStandardLinkForReference(document, patch.path, baseDir, links, diagnostics);
                 }
             }
         }
     }
 
+    /**
+     * Process back references for non-kustomization files
+     */
     private async processBackReferences(
         document: vscode.TextDocument,
         links: vscode.DocumentLink[]
@@ -129,51 +201,156 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         }
     }
 
-    private async addLinkForReference(
+    /**
+     * Add a clickable link for a Flux Kustomization reference (Git root relative)
+     * FIXED: Now properly resolves paths relative to Git root for Flux Kustomizations
+     */
+    private async addFluxLinkForReference(
+        document: vscode.TextDocument,
+        fieldName: string,
+        reference: string,
+        links: vscode.DocumentLink[],
+        diagnostics: vscode.Diagnostic[]
+    ): Promise<void> {
+        console.log(`Adding Flux link for ${fieldName}: ${reference}`);
+
+        try {
+            // Find the reference in the document text
+            const text = document.getText();
+            const referenceIndex = this.findReferenceInText(text, reference);
+
+            if (referenceIndex === -1) {
+                console.log(`Could not find Flux reference ${reference} in document text`);
+                return;
+            }
+
+            // FIXED: Always resolve relative to Git repository root for Flux Kustomizations
+            const gitRoot = this.findGitRoot(document.fileName);
+
+            // Handle relative paths properly
+            let resolvedPath: string;
+            if (path.isAbsolute(reference)) {
+                // If it's already absolute, use as-is
+                resolvedPath = reference;
+            } else {
+                // Remove leading "./" if present and resolve relative to git root
+                const cleanReference = reference.startsWith('./') ? reference.slice(2) : reference;
+                resolvedPath = path.resolve(gitRoot, cleanReference);
+            }
+
+            console.log(`Flux path resolved: ${reference} → ${resolvedPath} (via Git root: ${gitRoot})`);
+
+            // Create position and range for the link
+            const pos = document.positionAt(referenceIndex);
+            const range = new vscode.Range(
+                pos,
+                pos.translate(0, reference.length)
+            );
+
+            // Check if the target exists
+            let fileExists = fs.existsSync(resolvedPath);
+            let targetPath = resolvedPath;
+            let targetIsKustomization = false;
+
+            // For Flux Kustomization paths, we expect them to point to directories containing kustomization files
+            if (fileExists && fs.statSync(resolvedPath).isDirectory()) {
+                const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
+                const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
+
+                if (fs.existsSync(kustomizationPath)) {
+                    targetPath = kustomizationPath;
+                    targetIsKustomization = true;
+                    fileExists = true;
+                    console.log(`Found kustomization.yaml inside Flux target directory: ${targetPath}`);
+                } else if (fs.existsSync(kustomizationPathYml)) {
+                    targetPath = kustomizationPathYml;
+                    targetIsKustomization = true;
+                    fileExists = true;
+                    console.log(`Found kustomization.yml inside Flux target directory: ${targetPath}`);
+                } else {
+                    // Directory exists but no kustomization file
+                    console.log(`Flux target directory exists but contains no kustomization file: ${resolvedPath}`);
+                    fileExists = false; // Mark as not found since we need a kustomization file
+                }
+            } else if (fileExists && fs.statSync(resolvedPath).isFile()) {
+                // If it's already a file, check if it's a kustomization file
+                if (this.parser.isKustomizationFile(resolvedPath)) {
+                    targetIsKustomization = true;
+                    console.log(`Flux target is already a kustomization file: ${targetPath}`);
+                } else {
+                    console.log(`Flux target is a regular file: ${targetPath}`);
+                }
+            } else {
+                // Path doesn't exist at all
+                console.log(`Flux target path does not exist: ${resolvedPath}`);
+                fileExists = false;
+            }
+
+            // Create the link only if we found a valid target
+            if (fileExists) {
+                const uri = vscode.Uri.file(targetPath);
+                const docLink = new vscode.DocumentLink(range, uri);
+
+                // Create appropriate tooltip
+                if (fieldName === 'path') {
+                    docLink.tooltip = targetIsKustomization
+                        ? `Open kustomization: ${path.basename(targetPath)} in ${reference}`
+                        : `Open file: ${path.basename(targetPath)} in ${reference}`;
+                } else {
+                    docLink.tooltip = `Open Flux ${fieldName}: ${path.basename(targetPath)}`;
+                }
+
+                links.push(docLink);
+                console.log(`Added Flux link to kustomization file: ${targetPath}`);
+            } else {
+                // Add diagnostic for missing file/directory
+                let errorMessage: string;
+                if (fs.existsSync(resolvedPath)) {
+                    errorMessage = `Directory found but no kustomization.yaml file inside: ${reference}`;
+                } else {
+                    errorMessage = `Flux reference not found: ${reference} (resolved to: ${resolvedPath})`;
+                }
+
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    errorMessage,
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Flux Kustomize Navigator';
+                diagnostics.push(diagnostic);
+                console.log(`Added diagnostic for missing Flux reference: ${errorMessage}`);
+            }
+
+        } catch (error) {
+            console.error(`Error creating Flux link for ${reference}:`, error);
+        }
+    }
+
+    /**
+     * Add a clickable link for a standard kustomization reference (file relative)
+     */
+    private async addStandardLinkForReference(
         document: vscode.TextDocument,
         reference: string,
         baseDir: string,
         links: vscode.DocumentLink[],
         diagnostics: vscode.Diagnostic[]
     ): Promise<void> {
-        console.log(`Trying to add link for reference: ${reference}`);
+        console.log(`Trying to add standard link for reference: ${reference}`);
 
         try {
             // Find the reference in the document text
             const text = document.getText();
-            let referenceIndex = -1;
-            let referenceLength = reference.length;
-
-            // Try with quotes first
-            const doubleQuoteIndex = text.indexOf(`"${reference}"`);
-            const singleQuoteIndex = text.indexOf(`'${reference}'`);
-
-            if (doubleQuoteIndex !== -1) {
-                referenceIndex = doubleQuoteIndex + 1; // +1 to skip the quote
-            } else if (singleQuoteIndex !== -1) {
-                referenceIndex = singleQuoteIndex + 1; // +1 to skip the quote
-            } else {
-                // Try finding without quotes (YAML list items)
-                // Look for pattern like "- reference" or "  - reference"
-                const regExp = new RegExp(`[\\s-]+${reference}(?=[\\s,]|$)`, 'g');
-                const match = regExp.exec(text);
-
-                if (match) {
-                    // Calculate the position where the actual reference starts (after "- ")
-                    const matchStart = match.index;
-                    const prefixLength = match[0].length - reference.length;
-                    referenceIndex = matchStart + prefixLength;
-                }
-            }
+            const referenceIndex = this.findReferenceInText(text, reference);
 
             if (referenceIndex === -1) {
                 console.log(`Could not find reference ${reference} in document text`);
                 return;
             }
 
-            // Resolve the reference to a file path
+            // Resolve the reference to a file path (relative to file location)
             let resolvedPath = path.resolve(baseDir, reference);
-            console.log(`Resolved path: ${resolvedPath}`);
+            console.log(`Standard path resolved: ${reference} → ${resolvedPath}`);
 
             // Create position and range for the link
             const pos = document.positionAt(referenceIndex);
@@ -210,32 +387,106 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 // Create and add the document link with a simple tooltip
                 const uri = vscode.Uri.file(resolvedPath);
                 const docLink = new vscode.DocumentLink(range, uri);
-                docLink.tooltip = targetIsKustomization 
-                    ? `Go to kustomization: ${reference}` 
-                    : `Go to ${reference}`;
-                    
+                docLink.tooltip = targetIsKustomization
+                    ? `Go to kustomization: ${reference} (file relative)`
+                    : `Go to ${reference} (file relative)`;
+
                 links.push(docLink);
-                console.log(`Added link to ${resolvedPath}`);
+                console.log(`Added standard link to ${resolvedPath}`);
             } else {
                 // Add a diagnostic for missing file
                 const diagnostic = new vscode.Diagnostic(
                     range,
-                    `Referenced file not found: ${reference}`,
+                    `Referenced file not found: ${reference} (resolved to: ${resolvedPath})`,
                     vscode.DiagnosticSeverity.Warning
                 );
                 diagnostic.source = 'Kustomize Navigator';
                 diagnostics.push(diagnostic);
-                console.log(`Added diagnostic for missing file: ${reference}`);
+                console.log(`Added diagnostic for missing file: ${reference} -> ${resolvedPath}`);
 
                 // Still add a link, but it will point to a non-existent file
                 const uri = vscode.Uri.file(resolvedPath);
                 const docLink = new vscode.DocumentLink(range, uri);
-                docLink.tooltip = `File not found: ${reference}`;
+                docLink.tooltip = `File not found: ${reference} (resolved to: ${resolvedPath})`;
                 links.push(docLink);
             }
         } catch (error) {
-            console.error(`Error creating link for ${reference}:`, error);
+            console.error(`Error creating standard link for ${reference}:`, error);
         }
+    }
+
+    /**
+     * Find Git repository root for the given file
+     */
+    private findGitRoot(filePath: string): string {
+        const cacheKey = path.dirname(filePath);
+
+        // Check cache first
+        if (this.gitRootCache.has(cacheKey)) {
+            return this.gitRootCache.get(cacheKey)!;
+        }
+
+        try {
+            const result = execSync('git rev-parse --show-toplevel', {
+                cwd: path.dirname(filePath),
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore']
+            });
+            const gitRoot = result.trim();
+            this.gitRootCache.set(cacheKey, gitRoot);
+            console.log(`Git root found for ${filePath}: ${gitRoot}`);
+            return gitRoot;
+        } catch (error) {
+            // Fallback to directory of the file
+            console.warn(`Could not find Git root for ${filePath}, using file directory`);
+            const fallback = path.dirname(filePath);
+            this.gitRootCache.set(cacheKey, fallback);
+            return fallback;
+        }
+    }
+
+    /**
+     * Find a reference string in the document text, handling quotes and YAML syntax
+     */
+    private findReferenceInText(text: string, reference: string): number {
+        // Try with double quotes first
+        let index = text.indexOf(`"${reference}"`);
+        if (index !== -1) {
+            return index + 1; // +1 to skip the quote
+        }
+
+        // Try with single quotes
+        index = text.indexOf(`'${reference}'`);
+        if (index !== -1) {
+            return index + 1; // +1 to skip the quote
+        }
+        // Try without quotes (YAML unquoted string)
+        // Look for pattern like "path: reference" or "- reference"
+        const patterns = [
+            new RegExp(`path:\\s*${this.escapeRegex(reference)}(?=\\s|$)`, 'g'),
+            new RegExp(`-\\s*${this.escapeRegex(reference)}(?=\\s|$)`, 'g'),
+            new RegExp(`:\\s*${this.escapeRegex(reference)}(?=\\s|$)`, 'g')
+        ];
+
+        for (const pattern of patterns) {
+            const match = pattern.exec(text);
+            if (match) {
+                // Find where the reference starts within the match
+                const matchStart = match.index;
+                const matchText = match[0];
+                const refStart = matchText.indexOf(reference);
+                return matchStart + refStart;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Escape special regex characters
+     */
+    private escapeRegex(string: string): string {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     public dispose(): void {

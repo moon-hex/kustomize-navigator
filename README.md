@@ -117,6 +117,20 @@ The extension analyzes your YAML files for common issues and best practices:
 
 ## Release Notes
 
+### 0.6.0
+
+New Features
+- **Flux Kustomization CR Support**: Extension now detects and processes Flux Kustomization Custom Resources
+- **Enhanced File Detection**: Intelligently scans all YAML files to find Flux Kustomization CRs
+- **Bidirectional Flux References**: Shows when Flux Kustomization CRs reference your resources
+- **Updated File Watching**: Monitors all YAML files for Flux Kustomization changes
+- **Improved References View**: Displays both standard kustomization files and Flux CRs in the references panel
+
+Improvements
+- Better support for mixed GitOps repositories using both standard Kustomize and Flux
+- Enhanced documentation with Flux-specific examples
+- More comprehensive work
+
 ### 0.5.1
 
 Improvements

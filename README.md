@@ -117,6 +117,13 @@ The extension analyzes your YAML files for common issues and best practices:
 
 # Release Notes
 
+## 0.6.3
+
+**Bug Fixes**
+- **Multi-Document YAML Support**: Fixed issue where files containing multiple Flux Kustomization CRs separated by --- would only process the first document
+- **Enhanced YAML Parsing**: Extension now correctly handles and creates clickable links for all Flux Kustomization documents within a single file
+- **Code Refactoring**: Improved maintainability by extracting YAML parsing utilities into a separate module for better code organization
+
 ## 0.6.2
 
 **Improvements**

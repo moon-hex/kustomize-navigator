@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as yaml from 'js-yaml';
 import { execSync } from 'child_process';
 import { KustomizeParser } from './kustomizeParser';
+import { YamlUtils } from './yamlUtils';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
@@ -30,26 +30,45 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         }
 
         try {
-            // Try to parse the YAML content
-            const content = yaml.load(text) as any;
-            if (!content) {
+            // Try to parse the YAML content - handle multiple documents
+            const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(text);
+
+            if (yamlDocuments.length === 0) {
                 console.log(`No YAML content in: ${document.fileName}`);
                 return links;
             }
 
-            // Check if this is a Flux Kustomization CR
-            const isFluxKustomization = this.parser.isFluxKustomizationFile(document.fileName);
+            console.log(`Found ${yamlDocuments.length} YAML document(s) in: ${document.fileName}`);
 
-            // Check if this is a standard kustomization file
-            const isStandardKustomization = path.basename(document.fileName).match(/^kustomization\.ya?ml$/);
+            // Process each YAML document
+            for (let i = 0; i < yamlDocuments.length; i++) {
+                const content = yamlDocuments[i];
+                console.log(`Processing YAML document ${i + 1}/${yamlDocuments.length}`);
 
-            if (isFluxKustomization) {
-                console.log(`Processing Flux Kustomization CR: ${document.fileName}`);
-                await this.processFluxKustomizationReferences(document, content, links, diagnostics);
-            } else if (isStandardKustomization) {
-                console.log(`Processing standard kustomization file: ${document.fileName}`);
-                await this.processKustomizationReferences(document, content, links, diagnostics);
-            } else {
+                // Check if this document is a Flux Kustomization CR
+                const isFluxKustomization = YamlUtils.isFluxKustomizationDocument(content);
+
+                // Check if this document is a standard kustomization
+                const isStandardKustomization = !isFluxKustomization &&
+                    path.basename(document.fileName).match(/^kustomization\.ya?ml$/) &&
+                    YamlUtils.isStandardKustomizationDocument(content);
+
+                if (isFluxKustomization) {
+                    console.log(`Processing Flux Kustomization CR in document ${i + 1}: ${document.fileName}`);
+                    await this.processFluxKustomizationReferences(document, content, links, diagnostics);
+                } else if (isStandardKustomization) {
+                    console.log(`Processing standard kustomization in document ${i + 1}: ${document.fileName}`);
+                    await this.processKustomizationReferences(document, content, links, diagnostics);
+                }
+            }
+
+            // If no kustomization documents found, process back references
+            const hasKustomizationDocs = yamlDocuments.some(doc =>
+                YamlUtils.isFluxKustomizationDocument(doc) ||
+                (path.basename(document.fileName).match(/^kustomization\.ya?ml$/) && YamlUtils.isStandardKustomizationDocument(doc))
+            );
+
+            if (!hasKustomizationDocs) {
                 console.log(`Processing non-kustomization file: ${document.fileName}`);
                 // For non-kustomization files, add links to files that reference this one
                 await this.processBackReferences(document, links);
@@ -217,7 +236,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         try {
             // Find the reference in the document text
             const text = document.getText();
-            const referenceIndex = this.findReferenceInText(text, reference);
+            const referenceIndex = YamlUtils.findReferenceInText(text, reference);
 
             if (referenceIndex === -1) {
                 console.log(`Could not find Flux reference ${reference} in document text`);
@@ -341,7 +360,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         try {
             // Find the reference in the document text
             const text = document.getText();
-            const referenceIndex = this.findReferenceInText(text, reference);
+            const referenceIndex = YamlUtils.findReferenceInText(text, reference);
 
             if (referenceIndex === -1) {
                 console.log(`Could not find reference ${reference} in document text`);
@@ -443,50 +462,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             this.gitRootCache.set(cacheKey, fallback);
             return fallback;
         }
-    }
-
-    /**
-     * Find a reference string in the document text, handling quotes and YAML syntax
-     */
-    private findReferenceInText(text: string, reference: string): number {
-        // Try with double quotes first
-        let index = text.indexOf(`"${reference}"`);
-        if (index !== -1) {
-            return index + 1; // +1 to skip the quote
-        }
-
-        // Try with single quotes
-        index = text.indexOf(`'${reference}'`);
-        if (index !== -1) {
-            return index + 1; // +1 to skip the quote
-        }
-        // Try without quotes (YAML unquoted string)
-        // Look for pattern like "path: reference" or "- reference"
-        const patterns = [
-            new RegExp(`path:\\s*${this.escapeRegex(reference)}(?=\\s|$)`, 'g'),
-            new RegExp(`-\\s*${this.escapeRegex(reference)}(?=\\s|$)`, 'g'),
-            new RegExp(`:\\s*${this.escapeRegex(reference)}(?=\\s|$)`, 'g')
-        ];
-
-        for (const pattern of patterns) {
-            const match = pattern.exec(text);
-            if (match) {
-                // Find where the reference starts within the match
-                const matchStart = match.index;
-                const matchText = match[0];
-                const refStart = matchText.indexOf(reference);
-                return matchStart + refStart;
-            }
-        }
-
-        return -1;
-    }
-
-    /**
-     * Escape special regex characters
-     */
-    private escapeRegex(string: string): string {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     public dispose(): void {

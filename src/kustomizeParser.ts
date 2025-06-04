@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 import { execSync } from 'child_process';
+import { YamlUtils } from './yamlUtils';
 
 // Interface for parsed kustomization file
 export interface KustomizationPatch {
@@ -83,37 +84,10 @@ export class KustomizeParser {
     public isKustomizationFile(filePath: string): boolean {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
-            const parsed = yaml.load(fileContent) as any;
 
-            if (!parsed) {
-                return false;
-            }
-
-            // Check for Flux Kustomization CR first
-            if (parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1beta2' ||
-                parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1beta1' ||
-                parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1') {
-                return parsed.kind === 'Kustomization';
-            }
-
-            // Check for standard Kubernetes kustomization files
-            if (parsed.apiVersion &&
-                (parsed.apiVersion.startsWith('kustomize.config.k8s.io/'))) {
-                return parsed.kind === 'Kustomization';
-            }
-
-            // For older kustomization files without explicit apiVersion, check for common fields
-            const kustomizeFields = [
-                'resources', 'bases', 'patchesStrategicMerge', 'patchesJson6902',
-                'configMapGenerator', 'secretGenerator', 'generatorOptions',
-                'namePrefix', 'nameSuffix', 'commonLabels', 'commonAnnotations'
-            ];
-
-            // Count how many Kustomize fields are present
-            const fieldCount = kustomizeFields.filter(field => field in parsed).length;
-
-            // If at least 2 Kustomize-specific fields are present, consider it a Kustomization
-            return fieldCount >= 2;
+            // Check if any document in the file is a kustomization
+            return YamlUtils.containsFluxKustomizations(fileContent) ||
+                YamlUtils.containsStandardKustomizations(fileContent);
         } catch (error) {
             console.error(`Error checking if ${filePath} is a Kustomization file:`, error);
             return false;
@@ -121,21 +95,12 @@ export class KustomizeParser {
     }
 
     /**
-    * Check if a file is a Flux Kustomization CR specifically
+     * Check if a file is a Flux Kustomization CR specifically
      */
     public isFluxKustomizationFile(filePath: string): boolean {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
-            const parsed = yaml.load(fileContent) as any;
-
-            if (!parsed) {
-                return false;
-            }
-
-            return (parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1beta2' ||
-                parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1beta1' ||
-                parsed.apiVersion === 'kustomize.toolkit.fluxcd.io/v1') &&
-                parsed.kind === 'Kustomization';
+            return YamlUtils.containsFluxKustomizations(fileContent);
         } catch (error) {
             console.error(`Error checking if ${filePath} is a Flux Kustomization:`, error);
             return false;
@@ -182,29 +147,26 @@ export class KustomizeParser {
         }
     }
 
-    // Rest of the class remains the same...
-    // [remaining code is identical to the previous implementation]
-
     /**
-     * Parse a kustomization file (handles both types)
+     * Parse a kustomization file (handles both types and multiple documents)
      */
     public parseKustomizationFile(filePath: string): KustomizationFile | null {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
-            const parsed = yaml.load(fileContent) as any;
 
-            if (!parsed) {
-                return null;
-            }
+            // Get all kustomization documents from the file
+            const fluxDocs = YamlUtils.getFluxKustomizationDocuments(fileContent);
+            const standardDocs = YamlUtils.getStandardKustomizationDocuments(fileContent);
 
-            // Handle Flux Kustomization CR
-            if (this.isFluxKustomizationFile(filePath)) {
-                const result = this.parseFluxKustomization(filePath, parsed);
+            // Process the first kustomization document found
+            if (fluxDocs.length > 0) {
+                const result = this.parseFluxKustomization(filePath, fluxDocs[0]);
                 return result ? result.kustomization : null;
+            } else if (standardDocs.length > 0) {
+                return this.parseStandardKustomization(filePath, standardDocs[0]);
             }
 
-            // Handle standard kustomization.yaml
-            return this.parseStandardKustomization(filePath, parsed);
+            return null;
         } catch (error) {
             console.log(`Error parsing file ${filePath}:`, error);
             return null;
@@ -217,14 +179,22 @@ export class KustomizeParser {
     private getFluxResolvedReferences(filePath: string): string[] {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
-            const parsed = yaml.load(fileContent) as any;
+            const fluxDocs = YamlUtils.getFluxKustomizationDocuments(fileContent);
 
-            if (!parsed || !this.isFluxKustomizationFile(filePath)) {
+            if (fluxDocs.length === 0) {
                 return [];
             }
 
-            const result = this.parseFluxKustomization(filePath, parsed);
-            return result ? result.resolvedReferences : [];
+            // Process all Flux Kustomization documents and combine their references
+            const allReferences: string[] = [];
+            for (const doc of fluxDocs) {
+                const result = this.parseFluxKustomization(filePath, doc);
+                if (result) {
+                    allReferences.push(...result.resolvedReferences);
+                }
+            }
+
+            return allReferences;
         } catch (error) {
             console.log(`Error getting Flux references for ${filePath}:`, error);
             return [];
@@ -317,7 +287,14 @@ export class KustomizeParser {
         if (isFluxKustomization) {
             // For Flux Kustomization CRs, resolve relative to Git repository root
             const gitRoot = this.findGitRoot(basePath);
-            return path.resolve(gitRoot, reference);
+            // Handle relative paths properly
+            if (path.isAbsolute(reference)) {
+                return reference;
+            } else {
+                // Remove leading "./" if present and resolve relative to git root
+                const cleanReference = reference.startsWith('./') ? reference.slice(2) : reference;
+                return path.resolve(gitRoot, cleanReference);
+            }
         } else {
             // For standard kustomization files, resolve relative to file location
             const baseDir = path.dirname(basePath);
@@ -357,7 +334,7 @@ export class KustomizeParser {
 
         for (const filePath of kustomizationFiles) {
             const kustomization = this.parseKustomizationFile(filePath);
-            if (!kustomization) continue;
+            if (!kustomization) { continue; }
 
             let references: string[] = [];
 
@@ -428,9 +405,10 @@ export class KustomizeParser {
     public getBackReferencesForFile(filePath: string): string[] {
         return this.referenceMap.fileBackReferences.get(filePath) || [];
     }
+
     /**
- * Check if a path is a directory
- */
+     * Check if a path is a directory
+     */
     public isDirectory(filePath: string): boolean {
         try {
             return fs.existsSync(filePath) && fs.statSync(filePath).isDirectory();

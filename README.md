@@ -20,13 +20,13 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 
 ## References Explorer
 
-The References Explorer panel provides a comprehensive view of all relationships between your Kustomize files:
+The References Explorer panel provides a view of which kustomization files reference the current file:
 
-- **Kustomization References**: Shows other kustomization files that the current file references
-- **Resource References**: Shows regular YAML resources that the current file references
 - **Referenced By**: Shows which kustomization files reference the current file
+- Each reference is displayed with its parent folder for context
+- Clicking any reference opens the file directly
 
-This helps you understand the hierarchy and dependencies in your GitOps repository. Each reference is displayed with its parent folder for context, and clicking any reference opens the file directly.
+This helps you understand which kustomization files depend on your current file. The panel works for both kustomization files and regular YAML resources.
 
 ## Variable Highlighting
 
@@ -99,6 +99,13 @@ The extension analyzes your YAML files for common issues and best practices:
 - Performance optimization suggestions
 
 # Release Notes
+
+## 0.7.1
+
+**Changes**
+- **Simplified References View**: The References Explorer now only shows "Referenced By" information, making it more focused and easier to use
+- **Updated UI**: Renamed the view to "Kustomize Back References" to better reflect its functionality
+- **Improved Clarity**: Updated documentation and welcome message to be more accurate
 
 ## 0.7.0
 

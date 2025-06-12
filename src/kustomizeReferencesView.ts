@@ -162,132 +162,33 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
         
         const filePath = this.currentFile.fsPath;
         
-        // Check if this is a kustomization file
-        if (this.parser.isKustomizationFile(filePath)) {
-            // Get forward references (files this kustomization references)
-            const forwardRefs = this.parser.getReferencesForFile(filePath) || [];
+        // Get backward references (files that reference this file)
+        const backRefs = this.parser.getBackReferencesForFile(filePath) || [];
+        
+        if (backRefs.length > 0) {
+            const backChildren = backRefs.map(ref => {
+                const filename = path.basename(ref);
+                const folderName = path.basename(path.dirname(ref));
+                const displayName = `${folderName}/${filename}`;
+                
+                return new ReferenceItem(
+                    displayName,
+                    vscode.TreeItemCollapsibleState.None,
+                    vscode.Uri.file(ref),
+                    'kustomization',
+                    undefined,
+                    ref
+                );
+            });
             
-            if (forwardRefs.length > 0) {
-                // Group references by type
-                const kustomizationRefs: string[] = [];
-                const resourceRefs: string[] = [];
-                
-                forwardRefs.forEach(ref => {
-                    if (this.parser.isKustomizationFile(ref)) {
-                        kustomizationRefs.push(ref);
-                    } else {
-                        resourceRefs.push(ref);
-                    }
-                });
-                
-                // Create children for kustomization references
-                const kustomizationChildren = kustomizationRefs.map(ref => {
-                    const filename = path.basename(ref);
-                    const folderName = path.basename(path.dirname(ref));
-                    const displayName = `${folderName}/${filename}`;
-                    
-                    return new ReferenceItem(
-                        displayName,
-                        vscode.TreeItemCollapsibleState.None,
-                        vscode.Uri.file(ref),
-                        'kustomization',
-                        undefined,
-                        ref
-                    );
-                });
-                
-                // Create children for resource references
-                const resourceChildren = resourceRefs.map(ref => {
-                    return new ReferenceItem(
-                        path.basename(ref),
-                        vscode.TreeItemCollapsibleState.None,
-                        vscode.Uri.file(ref),
-                        'resource',
-                        undefined,
-                        ref
-                    );
-                });
-                
-                // Add kustomization references category if there are any
-                if (kustomizationChildren.length > 0) {
-                    items.push(new ReferenceItem(
-                        `Kustomization References (${kustomizationChildren.length})`,
-                        vscode.TreeItemCollapsibleState.Expanded,
-                        this.currentFile,
-                        'category',
-                        kustomizationChildren
-                    ));
-                }
-                
-                // Add resource references category if there are any
-                if (resourceChildren.length > 0) {
-                    items.push(new ReferenceItem(
-                        `Resource References (${resourceChildren.length})`,
-                        vscode.TreeItemCollapsibleState.Expanded,
-                        this.currentFile,
-                        'category',
-                        resourceChildren
-                    ));
-                }
-            }
-            
-            // Get backward references (files that reference this kustomization)
-            const backRefs = this.parser.getBackReferencesForFile(filePath) || [];
-            
-            if (backRefs.length > 0) {
-                const backChildren = backRefs.map(ref => {
-                    const filename = path.basename(ref);
-                    const folderName = path.basename(path.dirname(ref));
-                    const displayName = `${folderName}/${filename}`;
-                    
-                    return new ReferenceItem(
-                        displayName,
-                        vscode.TreeItemCollapsibleState.None,
-                        vscode.Uri.file(ref),
-                        'kustomization',
-                        undefined,
-                        ref
-                    );
-                });
-                
-                // Add backward references category
-                items.push(new ReferenceItem(
-                    `Referenced By (${backRefs.length})`,
-                    vscode.TreeItemCollapsibleState.Expanded,
-                    this.currentFile,
-                    'category',
-                    backChildren
-                ));
-            }
-        } else {
-            // For non-kustomization files, just show what references them
-            const backRefs = this.parser.getBackReferencesForFile(filePath) || [];
-            
-            if (backRefs.length > 0) {
-                const backChildren = backRefs.map(ref => {
-                    const filename = path.basename(ref);
-                    const folderName = path.basename(path.dirname(ref));
-                    const displayName = `${folderName}/${filename}`;
-                    
-                    return new ReferenceItem(
-                        displayName,
-                        vscode.TreeItemCollapsibleState.None,
-                        vscode.Uri.file(ref),
-                        'kustomization',
-                        undefined,
-                        ref
-                    );
-                });
-                
-                // Add backward references category
-                items.push(new ReferenceItem(
-                    `Referenced By (${backRefs.length})`,
-                    vscode.TreeItemCollapsibleState.Expanded,
-                    this.currentFile,
-                    'category',
-                    backChildren
-                ));
-            }
+            // Add backward references category
+            items.push(new ReferenceItem(
+                `Referenced By (${backRefs.length})`,
+                vscode.TreeItemCollapsibleState.Expanded,
+                this.currentFile,
+                'category',
+                backChildren
+            ));
         }
         
         // If no items were created, show a message

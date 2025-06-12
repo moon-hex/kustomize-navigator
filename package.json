@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate between Kustomize files in Kubernetes GitOps repositories",
-  "version": "0.6.3",
+  "version": "0.7.0",
   "icon": "images/vscode-extension-icon.png",
   "engines": {
     "vscode": ">=1.0.0"
@@ -35,24 +35,12 @@
         {
           "command": "kustomizeNavigator.openFile",
           "when": "view == kustomizeReferences && viewItem =~ /kustomization|resource/"
-        },
-        {
-          "command": "kustomizeNavigator.visualizeDependencies",
-          "when": "view == kustomizeReferences && viewItem == 'kustomization'",
-          "group": "inline"
         }
       ],
       "view/title": [
         {
           "command": "kustomizeNavigator.refreshReferences",
           "when": "view == kustomizeReferences",
-          "group": "navigation"
-        }
-      ],
-      "editor/title": [
-        {
-          "command": "kustomizeNavigator.visualizeDependencies",
-          "when": "resourceExtname == .yaml || resourceExtname == .yml",
           "group": "navigation"
         }
       ]
@@ -66,11 +54,6 @@
         "command": "kustomizeNavigator.refreshReferences",
         "title": "Refresh References",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "kustomizeNavigator.visualizeDependencies",
-        "title": "Visualize Kustomize Dependencies",
-        "icon": "$(references)"
       }
     ],
     "configuration": {

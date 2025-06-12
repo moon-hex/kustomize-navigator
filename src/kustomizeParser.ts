@@ -35,14 +35,14 @@ export interface KustomizationFile {
 export interface KustomizeReferenceMap {
     // Map of file paths to the files they reference
     fileReferences: Map<string, string[]>;
-    // Map of file paths to the files that reference them
-    fileBackReferences: Map<string, string[]>;
+    // Map of file paths to the files that reference them, with type information
+    fileBackReferences: Map<string, Array<{path: string, type: 'flux' | 'k8s'}>>;
 }
 
 export class KustomizeParser {
     private referenceMap: KustomizeReferenceMap = {
         fileReferences: new Map<string, string[]>(),
-        fileBackReferences: new Map<string, string[]>()
+        fileBackReferences: new Map<string, Array<{path: string, type: 'flux' | 'k8s'}>>()
     };
 
     // Cache for Git root detection
@@ -150,7 +150,7 @@ export class KustomizeParser {
     /**
      * Parse a kustomization file (handles both types and multiple documents)
      */
-    public parseKustomizationFile(filePath: string): KustomizationFile | null {
+    public parseKustomizationFile(filePath: string): KustomizationFile[] {
         try {
             const fileContent = fs.readFileSync(filePath, 'utf8');
 
@@ -158,18 +158,26 @@ export class KustomizeParser {
             const fluxDocs = YamlUtils.getFluxKustomizationDocuments(fileContent);
             const standardDocs = YamlUtils.getStandardKustomizationDocuments(fileContent);
 
-            // Process the first kustomization document found
-            if (fluxDocs.length > 0) {
-                const result = this.parseFluxKustomization(filePath, fluxDocs[0]);
-                return result ? result.kustomization : null;
-            } else if (standardDocs.length > 0) {
-                return this.parseStandardKustomization(filePath, standardDocs[0]);
+            const results: KustomizationFile[] = [];
+
+            // Process all Flux Kustomization documents
+            for (const doc of fluxDocs) {
+                const result = this.parseFluxKustomization(filePath, doc);
+                if (result) {
+                    results.push(result.kustomization);
+                }
             }
 
-            return null;
+            // Process all standard Kustomization documents
+            for (const doc of standardDocs) {
+                const result = this.parseStandardKustomization(filePath, doc);
+                results.push(result);
+            }
+
+            return results;
         } catch (error) {
             console.log(`Error parsing file ${filePath}:`, error);
-            return null;
+            return [];
         }
     }
 
@@ -327,65 +335,96 @@ export class KustomizeParser {
     public async buildReferenceMap(): Promise<KustomizeReferenceMap> {
         this.referenceMap = {
             fileReferences: new Map<string, string[]>(),
-            fileBackReferences: new Map<string, string[]>()
+            fileBackReferences: new Map<string, Array<{path: string, type: 'flux' | 'k8s'}>>()
         };
 
         const kustomizationFiles = await this.findKustomizationFiles();
 
         for (const filePath of kustomizationFiles) {
-            const kustomization = this.parseKustomizationFile(filePath);
-            if (!kustomization) { continue; }
+            const kustomizations = this.parseKustomizationFile(filePath);
+            if (kustomizations.length === 0) { continue; }
 
+            const isFluxKustomization = this.isFluxKustomizationFile(filePath);
             let references: string[] = [];
 
-            if (this.isFluxKustomizationFile(filePath)) {
+            if (isFluxKustomization) {
                 // For Flux CRs, get the resolved references using separate method
                 references = this.getFluxResolvedReferences(filePath);
             } else {
-                // For standard kustomizations, process normally
-                const addReferences = (paths: (string | KustomizationPatch)[]) => {
-                    for (const refPath of paths) {
-                        try {
-                            let resolvedPath;
-                            if (typeof refPath === 'string') {
-                                resolvedPath = this.resolveReference(filePath, refPath);
-                            } else if (refPath && typeof refPath === 'object' && refPath.path) {
-                                resolvedPath = this.resolveReference(filePath, refPath.path);
-                            } else {
-                                continue;
+                // For standard kustomizations, process all documents
+                for (const kustomization of kustomizations) {
+                    const addReferences = (paths: (string | KustomizationPatch)[]) => {
+                        for (const refPath of paths) {
+                            try {
+                                let resolvedPath;
+                                if (typeof refPath === 'string') {
+                                    resolvedPath = this.resolveReference(filePath, refPath);
+                                } else if (refPath && typeof refPath === 'object' && refPath.path) {
+                                    resolvedPath = this.resolveReference(filePath, refPath.path);
+                                } else {
+                                    continue;
+                                }
+
+                                // For both Flux and K8s, if the path is a directory, look for kustomization.yaml
+                                if (this.isDirectory(resolvedPath)) {
+                                    const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
+                                    const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
+
+                                    if (this.fileExists(kustomizationPath)) {
+                                        resolvedPath = kustomizationPath;
+                                    } else if (this.fileExists(kustomizationPathYml)) {
+                                        resolvedPath = kustomizationPathYml;
+                                    }
+                                }
+
+                                // Only add the reference if it exists
+                                if (this.fileExists(resolvedPath)) {
+                                    references.push(resolvedPath);
+                                    console.log(`Added reference: ${filePath} -> ${resolvedPath}`);
+                                }
+                            } catch (error) {
+                                console.warn(`Failed to resolve reference from ${filePath}:`, error);
                             }
-                            references.push(resolvedPath);
-                        } catch (error) {
-                            console.warn(`Failed to resolve reference from ${filePath}:`, error);
                         }
-                    }
-                };
+                    };
 
-                // Add all reference types
-                addReferences(kustomization.resources);
-                addReferences(kustomization.bases);
-                addReferences(kustomization.components);
-                addReferences(kustomization.patches);
-                addReferences(kustomization.patchesStrategicMerge);
-                addReferences(kustomization.configurations);
-                addReferences(kustomization.crds);
+                    // Add all reference types
+                    addReferences(kustomization.resources);
+                    addReferences(kustomization.bases);
+                    addReferences(kustomization.components);
+                    addReferences(kustomization.patches);
+                    addReferences(kustomization.patchesStrategicMerge);
+                    addReferences(kustomization.configurations);
+                    addReferences(kustomization.crds);
 
-                // Handle JSON 6902 patches which have a path field
-                kustomization.patchesJson6902.forEach(patch => {
-                    if (patch.path) {
-                        addReferences([patch.path]);
-                    }
-                });
+                    // Handle JSON 6902 patches which have a path field
+                    kustomization.patchesJson6902.forEach(patch => {
+                        if (patch.path) {
+                            addReferences([patch.path]);
+                        }
+                    });
+                }
             }
 
             // Store references and update back-references
             this.referenceMap.fileReferences.set(filePath, references);
 
+            // Update back-references for each resolved path
             references.forEach(resolvedPath => {
-                if (!this.referenceMap.fileBackReferences.has(resolvedPath)) {
-                    this.referenceMap.fileBackReferences.set(resolvedPath, []);
+                // Normalize the path to ensure consistent comparison
+                const normalizedPath = path.normalize(resolvedPath);
+                
+                if (!this.referenceMap.fileBackReferences.has(normalizedPath)) {
+                    this.referenceMap.fileBackReferences.set(normalizedPath, []);
                 }
-                this.referenceMap.fileBackReferences.get(resolvedPath)!.push(filePath);
+                
+                // Only add the back reference if it's not already there
+                const backRefs = this.referenceMap.fileBackReferences.get(normalizedPath)!;
+                const refType = isFluxKustomization ? 'flux' : 'k8s';
+                if (!backRefs.some(ref => ref.path === filePath)) {
+                    backRefs.push({ path: filePath, type: refType });
+                    console.log(`Added back reference: ${normalizedPath} <- ${filePath} (${refType})`);
+                }
             });
         }
 
@@ -402,8 +441,10 @@ export class KustomizeParser {
     /**
      * Get back-references for a specific file (files that reference this file)
      */
-    public getBackReferencesForFile(filePath: string): string[] {
-        return this.referenceMap.fileBackReferences.get(filePath) || [];
+    public getBackReferencesForFile(filePath: string): Array<{path: string, type: 'flux' | 'k8s'}> {
+        // Normalize the path to ensure consistent lookup
+        const normalizedPath = path.normalize(filePath);
+        return this.referenceMap.fileBackReferences.get(normalizedPath) || [];
     }
 
     /**

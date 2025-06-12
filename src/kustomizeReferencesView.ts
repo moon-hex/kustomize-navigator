@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { KustomizeParser } from './kustomizeParser';
+import { YamlUtils } from './yamlUtils';
 
 export class KustomizeReferencesView {
     private readonly referencesTreeProvider: ReferencesTreeDataProvider;
@@ -44,7 +45,7 @@ export class KustomizeReferencesView {
         }
     }
     
-    private updateStatusBar(editor: vscode.TextEditor | undefined): void {
+    private async updateStatusBar(editor: vscode.TextEditor | undefined): Promise<void> {
         if (!editor) {
             this.statusBarItem.hide();
             return;
@@ -60,12 +61,32 @@ export class KustomizeReferencesView {
         
         const backRefs = this.parser.getBackReferencesForFile(filePath) || [];
         
+        // Get document count for current file
+        const fileContent = editor.document.getText();
+        const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent);
+        const docCount = yamlDocuments.length;
+        
         if (backRefs.length > 0) {
-            this.statusBarItem.text = `$(references) ${backRefs.length} References`;
-            this.statusBarItem.tooltip = `This file is referenced by ${backRefs.length} Kustomize files`;
+            // Get total document count from referencing files
+            const refDocCounts = await Promise.all(backRefs.map(async ref => {
+                const refContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref));
+                const refDocs = YamlUtils.parseMultipleYamlDocuments(refContent.toString());
+                return refDocs.length;
+            }));
+            const totalRefDocs = refDocCounts.reduce((sum, count) => sum + count, 0);
+            
+            this.statusBarItem.text = `$(references) ${backRefs.length} References (${totalRefDocs} total docs)`;
+            this.statusBarItem.tooltip = `This file (${docCount} doc${docCount > 1 ? 's' : ''}) is referenced by ${backRefs.length} Kustomize files`;
             this.statusBarItem.show();
         } else {
-            this.statusBarItem.hide();
+            // Still show document count even if no references
+            if (docCount > 1) {
+                this.statusBarItem.text = `$(file-code) ${docCount} YAML Documents`;
+                this.statusBarItem.tooltip = `This file contains ${docCount} YAML documents`;
+                this.statusBarItem.show();
+            } else {
+                this.statusBarItem.hide();
+            }
         }
     }
     
@@ -88,29 +109,44 @@ class ReferenceItem extends vscode.TreeItem {
         public readonly label: string,
         public readonly collapsibleState: vscode.TreeItemCollapsibleState,
         public readonly resourceUri: vscode.Uri,
-        public readonly contextValue?: string,
+        public readonly contextValue: string,
         public readonly children?: ReferenceItem[],
-        public readonly description?: string
+        public readonly fullPath?: string,
+        public readonly documentCount?: number,
+        public readonly referenceType?: 'flux' | 'k8s'
     ) {
         super(label, collapsibleState);
-        this.tooltip = description || resourceUri.fsPath;
-        
-        // Only add command for non-category items
-        if (contextValue !== 'category') {
-            this.command = {
-                command: 'vscode.open',
-                title: 'Open File',
-                arguments: [resourceUri]
-            };
+        this.tooltip = this.getTooltip();
+        this.description = this.getDescription();
+        this.iconPath = this.getIconPath();
+    }
+
+    private getTooltip(): string {
+        if (this.contextValue === 'category') {
+            return this.label;
         }
-        
-        // Add appropriate icons
-        if (this.contextValue === 'kustomization') {
-            this.iconPath = new vscode.ThemeIcon('extensions');
-        } else if (this.contextValue === 'resource') {
-            this.iconPath = new vscode.ThemeIcon('file-code');
-        } else if (this.contextValue === 'category') {
-            this.iconPath = new vscode.ThemeIcon('folder');
+        const typeInfo = this.referenceType ? ` (${this.referenceType.toUpperCase()} Kustomization)` : '';
+        const docInfo = this.documentCount ? `\nContains ${this.documentCount} YAML document${this.documentCount > 1 ? 's' : ''}` : '';
+        return `${this.label}${typeInfo}${docInfo}`;
+    }
+
+    private getDescription(): string {
+        if (this.contextValue === 'category') {
+            return '';
+        }
+        const typeBadge = this.referenceType ? `[${this.referenceType.toUpperCase()}] ` : '';
+        const docBadge = this.documentCount ? `(${this.documentCount} doc${this.documentCount > 1 ? 's' : ''})` : '';
+        return `${typeBadge}${docBadge}`;
+    }
+
+    private getIconPath(): vscode.ThemeIcon | undefined {
+        switch (this.contextValue) {
+            case 'category':
+                return new vscode.ThemeIcon('folder');
+            case 'kustomization':
+                return new vscode.ThemeIcon('file-code');
+            default:
+                return undefined;
         }
     }
 }
@@ -153,11 +189,11 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
         return Promise.resolve([]);
     }
     
-    private getRootItems(): Thenable<ReferenceItem[]> {
+    private async getRootItems(): Promise<ReferenceItem[]> {
         const items: ReferenceItem[] = [];
         
         if (!this.currentFile) {
-            return Promise.resolve(items);
+            return items;
         }
         
         const filePath = this.currentFile.fsPath;
@@ -166,42 +202,81 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
         const backRefs = this.parser.getBackReferencesForFile(filePath) || [];
         
         if (backRefs.length > 0) {
-            const backChildren = backRefs.map(ref => {
-                const filename = path.basename(ref);
-                const folderName = path.basename(path.dirname(ref));
-                const displayName = `${folderName}/${filename}`;
+            // Separate Flux and K8s references
+            const fluxRefs = backRefs.filter(ref => ref.type === 'flux');
+            const k8sRefs = backRefs.filter(ref => ref.type === 'k8s');
+
+            // Process Flux references
+            if (fluxRefs.length > 0) {
+                const fluxChildren = await Promise.all(fluxRefs.map(async ref => {
+                    const filename = path.basename(ref.path);
+                    const folderName = path.basename(path.dirname(ref.path));
+                    const displayName = `${folderName}/${filename}`;
+                    
+                    // Get document count for the file
+                    const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
+                    const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent.toString());
+                    const docCount = yamlDocuments.length;
+                    
+                    return new ReferenceItem(
+                        displayName,
+                        vscode.TreeItemCollapsibleState.None,
+                        vscode.Uri.file(ref.path),
+                        'kustomization',
+                        undefined,
+                        ref.path,
+                        docCount,
+                        'flux'
+                    );
+                }));
                 
-                return new ReferenceItem(
-                    displayName,
-                    vscode.TreeItemCollapsibleState.None,
-                    vscode.Uri.file(ref),
-                    'kustomization',
-                    undefined,
-                    ref
-                );
-            });
-            
-            // Add backward references category
-            items.push(new ReferenceItem(
-                `Referenced By (${backRefs.length})`,
-                vscode.TreeItemCollapsibleState.Expanded,
-                this.currentFile,
-                'category',
-                backChildren
-            ));
+                // Add Flux references category with total document count
+                const totalFluxDocs = fluxChildren.reduce((sum, item) => sum + (item.documentCount || 1), 0);
+                items.push(new ReferenceItem(
+                    `Referenced by Flux (${fluxRefs.length} files, ${totalFluxDocs} total documents)`,
+                    vscode.TreeItemCollapsibleState.Expanded,
+                    this.currentFile,
+                    'category',
+                    fluxChildren
+                ));
+            }
+
+            // Process K8s references
+            if (k8sRefs.length > 0) {
+                const k8sChildren = await Promise.all(k8sRefs.map(async ref => {
+                    const filename = path.basename(ref.path);
+                    const folderName = path.basename(path.dirname(ref.path));
+                    const displayName = `${folderName}/${filename}`;
+                    
+                    // Get document count for the file
+                    const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
+                    const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent.toString());
+                    const docCount = yamlDocuments.length;
+                    
+                    return new ReferenceItem(
+                        displayName,
+                        vscode.TreeItemCollapsibleState.None,
+                        vscode.Uri.file(ref.path),
+                        'kustomization',
+                        undefined,
+                        ref.path,
+                        docCount,
+                        'k8s'
+                    );
+                }));
+                
+                // Add K8s references category with total document count
+                const totalK8sDocs = k8sChildren.reduce((sum, item) => sum + (item.documentCount || 1), 0);
+                items.push(new ReferenceItem(
+                    `Referenced by K8s (${k8sRefs.length} files, ${totalK8sDocs} total documents)`,
+                    vscode.TreeItemCollapsibleState.Expanded,
+                    this.currentFile,
+                    'category',
+                    k8sChildren
+                ));
+            }
         }
         
-        // If no items were created, show a message
-        if (items.length === 0) {
-            const noReferencesItem = new ReferenceItem(
-                'No references found',
-                vscode.TreeItemCollapsibleState.None,
-                this.currentFile,
-                'message'
-            );
-            items.push(noReferencesItem);
-        }
-        
-        return Promise.resolve(items);
+        return items;
     }
 }

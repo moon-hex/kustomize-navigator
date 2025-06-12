@@ -207,15 +207,15 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             );
 
             for (const ref of backReferences) {
-                const uri = vscode.Uri.file(ref);
+                const uri = vscode.Uri.file(ref.path);
                 const linkRange = new vscode.Range(
                     firstLine.range.start,
                     firstLine.range.start.translate(0, 30)
                 );
                 const docLink = new vscode.DocumentLink(linkRange, uri);
-                docLink.tooltip = `Referenced by: ${path.basename(ref)}`;
+                docLink.tooltip = `Referenced by ${ref.type.toUpperCase()} Kustomization: ${path.basename(ref.path)}`;
                 links.push(docLink);
-                console.log(`Added back reference link to: ${ref}`);
+                console.log(`Added back reference link to: ${ref.path} (${ref.type})`);
             }
         }
     }

@@ -98,9 +98,17 @@ The extension analyzes your YAML files for common issues and best practices:
 - Essential GitOps component verification
 - Performance optimization suggestions
 
-# Release Notes
+## Release Notes
 
-## 0.7.1
+### 0.7.2
+- Enhanced support for multi-document Kustomization files:
+  - Now properly processes all Kustomization documents in a single file
+  - Correctly tracks references from each document
+  - Improved handling of parent directory references (e.g., `../../`)
+- Improved back reference tracking for both Flux and K8s Kustomizations
+- Better distinction between Flux and K8s Kustomization references in the UI
+
+### 0.7.1
 
 **Changes**
 - **Simplified References View**: The References Explorer now only shows "Referenced By" information, making it more focused and easier to use

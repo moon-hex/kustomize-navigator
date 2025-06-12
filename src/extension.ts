@@ -104,6 +104,5 @@ export async function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
     // Cleanup will be handled by the disposables
 }
-
 // Import path for the visualization HTML
 import * as path from 'path';

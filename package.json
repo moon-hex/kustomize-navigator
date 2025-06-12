@@ -1,8 +1,8 @@
 {
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
-  "description": "Navigate between Kustomize files in Kubernetes GitOps repositories",
-  "version": "0.7.2",
+  "description": "Navigate and manage Kustomize references in your Kubernetes manifests",
+  "version": "0.8.0",
   "icon": "images/vscode-extension-icon.png",
   "engines": {
     "vscode": ">=1.0.0"

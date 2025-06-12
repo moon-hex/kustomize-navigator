@@ -287,47 +287,40 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                     fileExists = true;
                     console.log(`Found kustomization.yml inside Flux target directory: ${targetPath}`);
                 } else {
-                    // Directory exists but no kustomization file
-                    console.log(`Flux target directory exists but contains no kustomization file: ${resolvedPath}`);
-                    fileExists = false; // Mark as not found since we need a kustomization file
+                    // Directory exists but no kustomization file - create one when clicked
+                    targetPath = kustomizationPath;  // Default to kustomization.yaml
+                    fileExists = false;
+                    console.log(`Directory exists but no kustomization file, will create: ${targetPath}`);
                 }
-            } else if (fileExists && fs.statSync(resolvedPath).isFile()) {
-                // If it's already a file, check if it's a kustomization file
-                if (this.parser.isKustomizationFile(resolvedPath)) {
-                    targetIsKustomization = true;
-                    console.log(`Flux target is already a kustomization file: ${targetPath}`);
-                } else {
-                    console.log(`Flux target is a regular file: ${targetPath}`);
-                }
-            } else {
-                // Path doesn't exist at all
-                console.log(`Flux target path does not exist: ${resolvedPath}`);
-                fileExists = false;
+            } else if (!fileExists && !resolvedPath.endsWith('.yaml') && !resolvedPath.endsWith('.yml')) {
+                // If the target doesn't exist and doesn't have a yaml extension, treat it as a directory
+                targetPath = path.join(resolvedPath, 'kustomization.yaml');
+                console.log(`Target is a directory, will create: ${targetPath}`);
             }
 
-            // Create the link only if we found a valid target
-            if (fileExists) {
-                const uri = vscode.Uri.file(targetPath);
-                const docLink = new vscode.DocumentLink(range, uri);
+            // Create the link
+            const uri = vscode.Uri.file(targetPath);
+            const docLink = new vscode.DocumentLink(range, uri);
 
-                // Create appropriate tooltip
-                if (fieldName === 'path') {
-                    docLink.tooltip = targetIsKustomization
-                        ? `Open kustomization: ${path.basename(targetPath)} in ${reference}`
-                        : `Open file: ${path.basename(targetPath)} in ${reference}`;
-                } else {
-                    docLink.tooltip = `Open Flux ${fieldName}: ${path.basename(targetPath)}`;
-                }
-
-                links.push(docLink);
-                console.log(`Added Flux link to kustomization file: ${targetPath}`);
+            // Create appropriate tooltip
+            if (fieldName === 'path') {
+                docLink.tooltip = targetIsKustomization
+                    ? `Open kustomization: ${path.basename(targetPath)} in ${reference}`
+                    : `Create kustomization: ${path.basename(targetPath)} in ${reference}`;
             } else {
-                // Add diagnostic for missing file/directory
+                docLink.tooltip = `Open Flux ${fieldName}: ${path.basename(targetPath)}`;
+            }
+
+            links.push(docLink);
+            console.log(`Added Flux link to: ${targetPath}`);
+
+            // Add diagnostic if file doesn't exist
+            if (!fileExists) {
                 let errorMessage: string;
-                if (fs.existsSync(resolvedPath)) {
-                    errorMessage = `Directory found but no kustomization.yaml file inside: ${reference}`;
+                if (fs.existsSync(path.dirname(targetPath))) {
+                    errorMessage = `Directory exists but no kustomization.yaml file inside: ${reference}`;
                 } else {
-                    errorMessage = `Flux reference not found: ${reference} (resolved to: ${resolvedPath})`;
+                    errorMessage = `Flux reference not found: ${reference} (resolved to: ${targetPath})`;
                 }
 
                 const diagnostic = new vscode.Diagnostic(
@@ -337,7 +330,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 );
                 diagnostic.source = 'Flux Kustomize Navigator';
                 diagnostics.push(diagnostic);
-                console.log(`Added diagnostic for missing Flux reference: ${errorMessage}`);
+                console.log(`Added diagnostic for missing file: ${errorMessage}`);
             }
 
         } catch (error) {
@@ -390,44 +383,52 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 if (fs.existsSync(kustomizationPath)) {
                     resolvedPath = kustomizationPath;
                     targetIsKustomization = true;
+                    fileExists = true;
                     console.log(`Found kustomization.yaml inside directory`);
                 } else if (fs.existsSync(kustomizationPathYml)) {
                     resolvedPath = kustomizationPathYml;
                     targetIsKustomization = true;
+                    fileExists = true;
                     console.log(`Found kustomization.yml inside directory`);
                 } else {
+                    // Directory exists but no kustomization file - create one when clicked
+                    resolvedPath = kustomizationPath;  // Default to kustomization.yaml
                     fileExists = false;
-                    console.log(`Directory exists but no kustomization file found inside`);
+                    console.log(`Directory exists but no kustomization file, will create: ${resolvedPath}`);
                 }
+            } else if (!fileExists && !resolvedPath.endsWith('.yaml') && !resolvedPath.endsWith('.yml')) {
+                // If the target doesn't exist and doesn't have a yaml extension, treat it as a directory
+                resolvedPath = path.join(resolvedPath, 'kustomization.yaml');
+                console.log(`Target is a directory, will create: ${resolvedPath}`);
             }
 
-            // Create link if file exists
-            if (fileExists) {
-                // Create and add the document link with a simple tooltip
-                const uri = vscode.Uri.file(resolvedPath);
-                const docLink = new vscode.DocumentLink(range, uri);
-                docLink.tooltip = targetIsKustomization
-                    ? `Go to kustomization: ${reference} (file relative)`
-                    : `Go to ${reference} (file relative)`;
+            // Create link
+            const uri = vscode.Uri.file(resolvedPath);
+            const docLink = new vscode.DocumentLink(range, uri);
+            docLink.tooltip = targetIsKustomization
+                ? `Go to kustomization: ${reference} (file relative)`
+                : `Create kustomization: ${reference} (file relative)`;
 
-                links.push(docLink);
-                console.log(`Added standard link to ${resolvedPath}`);
-            } else {
-                // Add a diagnostic for missing file
+            links.push(docLink);
+            console.log(`Added standard link to ${resolvedPath}`);
+
+            // Add diagnostic if file doesn't exist
+            if (!fileExists) {
+                let errorMessage: string;
+                if (fs.existsSync(path.dirname(resolvedPath))) {
+                    errorMessage = `Directory exists but no kustomization.yaml file inside: ${reference}`;
+                } else {
+                    errorMessage = `Referenced file not found: ${reference} (resolved to: ${resolvedPath})`;
+                }
+
                 const diagnostic = new vscode.Diagnostic(
                     range,
-                    `Referenced file not found: ${reference} (resolved to: ${resolvedPath})`,
+                    errorMessage,
                     vscode.DiagnosticSeverity.Warning
                 );
                 diagnostic.source = 'Kustomize Navigator';
                 diagnostics.push(diagnostic);
-                console.log(`Added diagnostic for missing file: ${reference} -> ${resolvedPath}`);
-
-                // Still add a link, but it will point to a non-existent file
-                const uri = vscode.Uri.file(resolvedPath);
-                const docLink = new vscode.DocumentLink(range, uri);
-                docLink.tooltip = `File not found: ${reference} (resolved to: ${resolvedPath})`;
-                links.push(docLink);
+                console.log(`Added diagnostic for missing file: ${errorMessage}`);
             }
         } catch (error) {
             console.error(`Error creating standard link for ${reference}:`, error);

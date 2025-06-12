@@ -20,7 +20,7 @@ export class KustomizeReferencesView {
         // Create status bar item
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this.statusBarItem.command = 'workbench.view.explorer';
-        
+
         // Update the tree view when the active editor changes
         vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor) {
@@ -69,7 +69,7 @@ export class KustomizeReferencesView {
         if (backRefs.length > 0) {
             // Get total document count from referencing files
             const refDocCounts = await Promise.all(backRefs.map(async ref => {
-                const refContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref));
+                const refContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
                 const refDocs = YamlUtils.parseMultipleYamlDocuments(refContent.toString());
                 return refDocs.length;
             }));
@@ -111,7 +111,7 @@ class ReferenceItem extends vscode.TreeItem {
         public readonly resourceUri: vscode.Uri,
         public readonly contextValue: string,
         public readonly children?: ReferenceItem[],
-        public readonly fullPath?: string,
+        public readonly fullPath?: string | { path: string; type: 'flux' | 'k8s' },
         public readonly documentCount?: number,
         public readonly referenceType?: 'flux' | 'k8s'
     ) {
@@ -119,6 +119,15 @@ class ReferenceItem extends vscode.TreeItem {
         this.tooltip = this.getTooltip();
         this.description = this.getDescription();
         this.iconPath = this.getIconPath();
+
+        // Add command for non-category items to make them clickable
+        if (contextValue !== 'category') {
+            this.command = {
+                command: 'vscode.open',
+                title: 'Open File',
+                arguments: [resourceUri]
+            };
+        }
     }
 
     private getTooltip(): string {
@@ -127,7 +136,8 @@ class ReferenceItem extends vscode.TreeItem {
         }
         const typeInfo = this.referenceType ? ` (${this.referenceType.toUpperCase()} Kustomization)` : '';
         const docInfo = this.documentCount ? `\nContains ${this.documentCount} YAML document${this.documentCount > 1 ? 's' : ''}` : '';
-        return `${this.label}${typeInfo}${docInfo}`;
+        const pathInfo = typeof this.fullPath === 'string' ? this.fullPath : this.fullPath?.path;
+        return `${this.label}${typeInfo}${docInfo}\nPath: ${pathInfo}`;
     }
 
     private getDescription(): string {
@@ -224,7 +234,7 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
                         vscode.Uri.file(ref.path),
                         'kustomization',
                         undefined,
-                        ref.path,
+                        { path: ref.path, type: 'flux' },
                         docCount,
                         'flux'
                     );
@@ -259,7 +269,7 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
                         vscode.Uri.file(ref.path),
                         'kustomization',
                         undefined,
-                        ref.path,
+                        { path: ref.path, type: 'k8s' },
                         docCount,
                         'k8s'
                     );

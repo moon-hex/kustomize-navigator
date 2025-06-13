@@ -11,241 +11,226 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         position: vscode.Position,
         token: vscode.CancellationToken
     ): Promise<vscode.Hover | null> {
-        // If position is at the very top of the document, show back references
-        if (position.line === 0 && position.character < 10) {
-            const backRefHover = await this.provideBackReferenceHover(document);
-            if (backRefHover) {
-                return backRefHover;
-            }
-        }
-        
-        // Get the word at the cursor
-        const wordRange = document.getWordRangeAtPosition(position);
-        if (!wordRange) {
-            return null;
-        }
-
-        const word = document.getText(wordRange);
-
-        // Check if this is a kustomization file
-        const isKustomizationFile = this.parser.isKustomizationFile(document.fileName);
-        if (!isKustomizationFile) {
-            return null;
-        }
-
-        // Parse the document to find references
         try {
-            const content = document.getText();
+            // If position is at the very top of the document, show back references
+            if (position.line === 0 && position.character < 10) {
+                const backRefHover = await this.provideBackReferenceHover(document);
+                if (backRefHover) {
+                    return backRefHover;
+                }
+            }
+            
+            // Get the word at the cursor
+            const wordRange = document.getWordRangeAtPosition(position);
+            if (!wordRange) {
+                return null;
+            }
+
+            const word = document.getText(wordRange);
+
+            // Check if this is a kustomization file
+            const isKustomizationFile = this.parser.isKustomizationFile(document.fileName);
+            if (!isKustomizationFile) {
+                return null;
+            }
+
+            // Parse the document to find references
             const docPath = document.fileName;
             const baseDir = path.dirname(docPath);
 
             // Look for references that match the word under cursor
-            const kustomization = this.parser.parseKustomizationFile(docPath);
-            if (!kustomization) {
+            const kustomizations = this.parser.parseKustomizationFile(docPath);
+            if (kustomizations.length === 0) {
                 return null;
             }
 
-            // Collect all references from the kustomization file
-            const allReferences = [
-                ...kustomization.resources,
-                ...kustomization.bases,
-                ...kustomization.components,
-                ...kustomization.patches,
-                ...kustomization.patchesStrategicMerge,
-                ...kustomization.configurations,
-                ...kustomization.crds
-            ];
+            // Process each kustomization file in the document
+            for (const kustomization of kustomizations) {
+                // Collect all references from the kustomization file
+                const allReferences = [
+                    ...kustomization.resources,
+                    ...kustomization.bases,
+                    ...kustomization.components,
+                    ...kustomization.patches,
+                    ...kustomization.patchesStrategicMerge,
+                    ...kustomization.configurations,
+                    ...kustomization.crds
+                ];
 
-            // Find the reference that contains the word
-            const reference = allReferences.find(ref => ref.includes(word));
-            if (!reference) {
-                return null;
-            }
-            // Resolve the reference
-            // Find the reference that contains the word
-            let matchingReference: string | undefined;
+                // Find the reference that contains the word
+                let matchingReference: string | undefined;
 
-            // First check string references
-            const stringReferences = allReferences.filter(ref => typeof ref === 'string') as string[];
-            matchingReference = stringReferences.find(ref => ref.includes(word));
+                // First check string references
+                const stringReferences = allReferences.filter(ref => typeof ref === 'string') as string[];
+                matchingReference = stringReferences.find(ref => ref.includes(word));
 
-            // If no match found, check object references with path property
-            if (!matchingReference) {
-                const objectReferences = allReferences.filter(ref =>
-                    typeof ref === 'object' && ref !== null && 'path' in ref
-                ) as KustomizationPatch[];
+                // If no match found, check object references with path property
+                if (!matchingReference) {
+                    const objectReferences = allReferences.filter(ref =>
+                        typeof ref === 'object' && ref !== null && 'path' in ref
+                    ) as KustomizationPatch[];
 
-                const matchingObject = objectReferences.find(ref =>
-                    typeof ref.path === 'string' && ref.path.includes(word)
-                );
+                    const matchingObject = objectReferences.find(ref =>
+                        typeof ref.path === 'string' && ref.path.includes(word)
+                    );
 
-                if (matchingObject && matchingObject.path) {
-                    matchingReference = matchingObject.path;
+                    if (matchingObject?.path) {
+                        matchingReference = matchingObject.path;
+                    }
                 }
-            }
 
-            if (!matchingReference) {
-                return null;
-            }
+                if (!matchingReference) {
+                    continue; // Try next kustomization if no match found
+                }
 
-            // Resolve the reference
-            let resolvedPath = path.resolve(baseDir, matchingReference);
-            let targetIsKustomization = false;
+                // Resolve the reference
+                let resolvedPath = path.resolve(baseDir, matchingReference);
+                let targetIsKustomization = false;
 
-            // If it's a directory, look for kustomization.yaml inside
-            if (this.parser.isDirectory(resolvedPath)) {
-                const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
-                const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
+                // If it's a directory, look for kustomization.yaml inside
+                if (this.parser.isDirectory(resolvedPath)) {
+                    const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
+                    const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
 
-                if (this.parser.fileExists(kustomizationPath)) {
-                    resolvedPath = kustomizationPath;
+                    if (this.parser.fileExists(kustomizationPath)) {
+                        resolvedPath = kustomizationPath;
+                        targetIsKustomization = true;
+                    } else if (this.parser.fileExists(kustomizationPathYml)) {
+                        resolvedPath = kustomizationPathYml;
+                        targetIsKustomization = true;
+                    }
+                } else if (this.parser.isKustomizationFile(resolvedPath)) {
                     targetIsKustomization = true;
-                } else if (this.parser.fileExists(kustomizationPathYml)) {
-                    resolvedPath = kustomizationPathYml;
-                    targetIsKustomization = true;
-                }
-            } else if (this.parser.isKustomizationFile(resolvedPath)) {
-                targetIsKustomization = true;
-            }
-
-            // If the target is a kustomization file, parse it to show resources
-            if (targetIsKustomization && this.parser.fileExists(resolvedPath)) {
-                const targetKustomization = this.parser.parseKustomizationFile(resolvedPath);
-                if (!targetKustomization) {
-                    return null;
                 }
 
-                // Create a detailed markdown hover
-                const hoverContent = new vscode.MarkdownString();
-                hoverContent.isTrusted = true;
-                hoverContent.supportHtml = true;  // Enable HTML support
-                hoverContent.appendMarkdown(`### Kustomization: \`${reference}\`\n\n`);
-                if (targetKustomization.resources.length > 0) {
-                    hoverContent.appendMarkdown(`#### Resources (${targetKustomization.resources.length})\n`);
+                // If the target is a kustomization file, parse it to show resources
+                if (targetIsKustomization && this.parser.fileExists(resolvedPath)) {
+                    const targetKustomizations = this.parser.parseKustomizationFile(resolvedPath);
+                    if (targetKustomizations.length === 0) {
+                        continue;
+                    }
 
-                    // Make each resource clickable
-                    targetKustomization.resources.forEach(resource => {
-                        const resourcePath = path.resolve(path.dirname(resolvedPath), resource);
-                        const resourceUri = vscode.Uri.file(resourcePath);
-                        hoverContent.appendMarkdown(`- [\`${resource}\`](${resourceUri.toString()})\n`);
-                    });
-                    hoverContent.appendMarkdown('\n');
-                }
+                    // Create a detailed markdown hover
+                    const hoverContent = new vscode.MarkdownString();
+                    hoverContent.isTrusted = true;
+                    hoverContent.supportHtml = true;
 
-                if (targetKustomization.bases.length > 0) {
-                    hoverContent.appendMarkdown(`#### Bases (${targetKustomization.bases.length})\n`);
+                    // Process each target kustomization
+                    for (const targetKustomization of targetKustomizations) {
+                        hoverContent.appendMarkdown(`### Kustomization: \`${matchingReference}\`\n\n`);
 
-                    // Make each base clickable
-                    targetKustomization.bases.forEach(base => {
-                        const basePath = path.resolve(path.dirname(resolvedPath), base);
-                        let baseUri;
-
-                        if (this.parser.isDirectory(basePath)) {
-                            // If it's a directory, try to find the kustomization file
-                            const kustomizationPath = path.join(basePath, 'kustomization.yaml');
-                            const kustomizationPathYml = path.join(basePath, 'kustomization.yml');
-
-                            if (this.parser.fileExists(kustomizationPath)) {
-                                baseUri = vscode.Uri.file(kustomizationPath);
-                            } else if (this.parser.fileExists(kustomizationPathYml)) {
-                                baseUri = vscode.Uri.file(kustomizationPathYml);
-                            } else {
-                                baseUri = vscode.Uri.file(basePath);
+                        // Add resources section if any
+                        if (targetKustomization.resources.length > 0) {
+                            hoverContent.appendMarkdown(`#### Resources (${targetKustomization.resources.length})\n`);
+                            for (const resource of targetKustomization.resources) {
+                                const resourcePath = path.resolve(path.dirname(resolvedPath), resource);
+                                const resourceUri = vscode.Uri.file(resourcePath);
+                                hoverContent.appendMarkdown(`- [\`${resource}\`](${resourceUri.toString()})\n`);
                             }
-                        } else {
-                            baseUri = vscode.Uri.file(basePath);
+                            hoverContent.appendMarkdown('\n');
                         }
 
-                        hoverContent.appendMarkdown(`- [\`${base}\`](${baseUri.toString()})\n`);
-                    });
-                    hoverContent.appendMarkdown('\n');
-                }
+                        // Add bases section if any
+                        if (targetKustomization.bases.length > 0) {
+                            hoverContent.appendMarkdown(`#### Bases (${targetKustomization.bases.length})\n`);
+                            for (const base of targetKustomization.bases) {
+                                const basePath = path.resolve(path.dirname(resolvedPath), base);
+                                let baseUri;
 
-                if (targetKustomization.patches.length > 0 || targetKustomization.patchesStrategicMerge.length > 0) {
-                    const patchCount = targetKustomization.patches.length + targetKustomization.patchesStrategicMerge.length;
-                    hoverContent.appendMarkdown(`#### Patches (${patchCount})\n`);
+                                if (this.parser.isDirectory(basePath)) {
+                                    const kustomizationPath = path.join(basePath, 'kustomization.yaml');
+                                    const kustomizationPathYml = path.join(basePath, 'kustomization.yml');
 
-                    // Make each patch clickable
-                    const processPatches = (patches: any[]) => {
-                        patches.forEach(patch => {
-                            let patchPath;
-                            let displayName;
-
-                            if (typeof patch === 'string') {
-                                // Simple string patch reference
-                                patchPath = path.resolve(path.dirname(resolvedPath), patch);
-                                displayName = patch;
-                            } else if (patch && typeof patch === 'object') {
-                                // Object-style patch which might have a path property
-                                if (patch.path && typeof patch.path === 'string') {
-                                    patchPath = path.resolve(path.dirname(resolvedPath), patch.path);
-                                    displayName = patch.path;
+                                    if (this.parser.fileExists(kustomizationPath)) {
+                                        baseUri = vscode.Uri.file(kustomizationPath);
+                                    } else if (this.parser.fileExists(kustomizationPathYml)) {
+                                        baseUri = vscode.Uri.file(kustomizationPathYml);
+                                    } else {
+                                        baseUri = vscode.Uri.file(basePath);
+                                    }
                                 } else {
-                                    // Skip patches without a path property
-                                    return;
+                                    baseUri = vscode.Uri.file(basePath);
                                 }
-                            } else {
-                                // Skip invalid patches
-                                return;
+
+                                hoverContent.appendMarkdown(`- [\`${base}\`](${baseUri.toString()})\n`);
+                            }
+                            hoverContent.appendMarkdown('\n');
+                        }
+
+                        // Add patches sections if any
+                        const hasPatches = targetKustomization.patches.length > 0 || 
+                                         targetKustomization.patchesStrategicMerge.length > 0 || 
+                                         targetKustomization.patchesJson6902.length > 0;
+
+                        if (hasPatches) {
+                            // Process regular patches
+                            if (targetKustomization.patches.length > 0) {
+                                hoverContent.appendMarkdown(`#### Patches (${targetKustomization.patches.length})\n`);
+                                this.processPatches(targetKustomization.patches, resolvedPath, hoverContent);
+                                hoverContent.appendMarkdown('\n');
                             }
 
-                            const patchUri = vscode.Uri.file(patchPath);
-                            hoverContent.appendMarkdown(`- [\`${displayName}\`](${patchUri.toString()})\n`);
-                        });
-                    };
+                            // Process strategic merge patches
+                            if (targetKustomization.patchesStrategicMerge.length > 0) {
+                                hoverContent.appendMarkdown(`#### Strategic Merge Patches (${targetKustomization.patchesStrategicMerge.length})\n`);
+                                this.processPatches(targetKustomization.patchesStrategicMerge, resolvedPath, hoverContent);
+                                hoverContent.appendMarkdown('\n');
+                            }
 
-                    // Process regular patches
-                    if (targetKustomization.patches.length > 0) {
-                        hoverContent.appendMarkdown(`#### Patches (${targetKustomization.patches.length})\n`);
-                        processPatches(targetKustomization.patches);
-                        hoverContent.appendMarkdown('\n');
-                    }
+                            // Process JSON 6902 patches
+                            if (targetKustomization.patchesJson6902.length > 0) {
+                                hoverContent.appendMarkdown(`#### JSON 6902 Patches (${targetKustomization.patchesJson6902.length})\n`);
+                                for (const patch of targetKustomization.patchesJson6902) {
+                                    if (patch?.path && typeof patch.path === 'string') {
+                                        const patchPath = path.resolve(path.dirname(resolvedPath), patch.path);
+                                        const patchUri = vscode.Uri.file(patchPath);
 
-                    // Process strategic merge patches separately
-                    if (targetKustomization.patchesStrategicMerge.length > 0) {
-                        hoverContent.appendMarkdown(`#### Strategic Merge Patches (${targetKustomization.patchesStrategicMerge.length})\n`);
-                        processPatches(targetKustomization.patchesStrategicMerge);
-                        hoverContent.appendMarkdown('\n');
-                    }
-
-                    // Process JSON 6902 patches
-                    if (targetKustomization.patchesJson6902.length > 0) {
-                        hoverContent.appendMarkdown(`#### JSON 6902 Patches (${targetKustomization.patchesJson6902.length})\n`);
-                        targetKustomization.patchesJson6902.forEach(patch => {
-                            if (patch && typeof patch === 'object' && patch.path && typeof patch.path === 'string') {
-                                const patchPath = path.resolve(path.dirname(resolvedPath), patch.path);
-                                const patchUri = vscode.Uri.file(patchPath);
-
-                                let targetInfo = '';
-                                if (patch.target && typeof patch.target === 'object') {
-                                    if (patch.target.kind) {
-                                        targetInfo += ` (Kind: ${patch.target.kind}`;
-                                        if (patch.target.name) {
-                                            targetInfo += `, Name: ${patch.target.name}`;
+                                        let targetInfo = '';
+                                        if (patch.target?.kind) {
+                                            targetInfo = ` (Kind: ${patch.target.kind}`;
+                                            if (patch.target.name) {
+                                                targetInfo += `, Name: ${patch.target.name}`;
+                                            }
+                                            targetInfo += ')';
                                         }
-                                        targetInfo += ')';
+
+                                        hoverContent.appendMarkdown(`- [\`${patch.path}\`](${patchUri.toString()})${targetInfo}\n`);
                                     }
                                 }
-
-                                hoverContent.appendMarkdown(`- [\`${patch.path}\`](${patchUri.toString()})${targetInfo}\n`);
+                                hoverContent.appendMarkdown('\n');
                             }
-                        });
-                        hoverContent.appendMarkdown('\n');
+                        }
+
+                        return new vscode.Hover(hoverContent, wordRange);
                     }
-
-                    hoverContent.appendMarkdown('\n');
                 }
-
-                // We're removing the explicit "Open File" link since we've made all resources clickable
-                // and there's already ctrl+click behavior
-
-                return new vscode.Hover(hoverContent, wordRange);
             }
         } catch (error) {
             console.error('Error providing hover:', error);
         }
 
         return null;
+    }
+
+    private processPatches(patches: any[], basePath: string, hoverContent: vscode.MarkdownString): void {
+        for (const patch of patches) {
+            let patchPath: string | undefined;
+            let displayName: string | undefined;
+
+            if (typeof patch === 'string') {
+                patchPath = patch;
+                displayName = patch;
+            } else if (patch?.path && typeof patch.path === 'string') {
+                patchPath = patch.path;
+                displayName = patch.path;
+            }
+
+            if (patchPath && displayName) {
+                const fullPath = path.resolve(path.dirname(basePath), patchPath);
+                const patchUri = vscode.Uri.file(fullPath);
+                hoverContent.appendMarkdown(`- [\`${displayName}\`](${patchUri.toString()})\n`);
+            }
+        }
     }
     
     private async provideBackReferenceHover(document: vscode.TextDocument): Promise<vscode.Hover | null> {

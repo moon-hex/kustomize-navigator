@@ -1,119 +1,66 @@
-// ParserFactory.ts - Fixed imports
-import { BaseParser } from './BaseParser';
-import { FluxKustomizationParser } from './FluxKustomizationParser';
-import { StandardKustomizationParser } from './StandardKustomizationParser';
-import { KustomizationFile } from '../models/KustomizationFile';
-import { ParseResult } from '../models/ParsedDocument';
+// ParserFactory.ts - Updated to use KustomizeParser
+import { KustomizeParser } from '../../kustomizeParser';
+import { KustomizationFile } from '../../kustomizeParser';
+import * as vscode from 'vscode';
 
 export class ParserFactory {
-    private static parsers: BaseParser[] = [
-        new FluxKustomizationParser(),
-        new StandardKustomizationParser()
-    ];
+    private static parser: KustomizeParser | null = null;
 
     /**
-     * Get the appropriate parser for a file
+     * Initialize the parser with workspace root
      */
-    public static getParser(filePath: string): BaseParser | null {
-        for (const parser of this.parsers) {
-            if (parser.canParse(filePath)) {
-                return parser;
+    public static initialize(workspaceRoot: string): void {
+        this.parser = new KustomizeParser(workspaceRoot);
+    }
+
+    /**
+     * Get the parser instance
+     */
+    private static getParser(): KustomizeParser {
+        if (!this.parser) {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                throw new Error('No workspace root found');
             }
+            this.initialize(workspaceRoot);
         }
-        return null;
-    }
-
-    /**
-     * Get all available parsers
-     */
-    public static getAllParsers(): BaseParser[] {
-        return [...this.parsers];
-    }
-
-    /**
-     * Get parsers by type
-     */
-    public static getParsersByType(type: 'flux' | 'standard'): BaseParser[] {
-        return this.parsers.filter(parser => parser.getParserType() === type);
+        return this.parser!;
     }
 
     /**
      * Check if a file can be parsed as a kustomization
      */
     public static canParseFile(filePath: string): boolean {
-        return this.parsers.some(parser => parser.canParse(filePath));
+        return this.getParser().isKustomizationFile(filePath);
     }
 
     /**
-     * Parse a file using the appropriate parser
+     * Parse a file using the parser
      */
-    public static parseFile(filePath: string): KustomizationFile | null {
-        const parser = this.getParser(filePath);
-        return parser ? parser.parse(filePath) : null;
+    public static parseFile(filePath: string): KustomizationFile[] {
+        return this.getParser().parseKustomizationFile(filePath);
     }
 
     /**
-     * Parse document structure using the appropriate parser
-     */
-    public static parseDocument(filePath: string): ParseResult | null {
-        const parser = this.getParser(filePath);
-        return parser ? parser.parseDocument(filePath) : null;
-    }
-
-    /**
-     * Get resolved references using the appropriate parser
+     * Get resolved references for a file
      */
     public static getResolvedReferences(filePath: string): string[] {
-        const parser = this.getParser(filePath);
-        return parser ? parser.getResolvedReferences(filePath) : [];
+        return this.getParser().getReferencesForFile(filePath);
     }
 
     /**
-     * Validate a kustomization file using the appropriate parser
-     */
-    public static validateFile(filePath: string): string[] {
-        const parser = this.getParser(filePath);
-        if (!parser) {
-            return ['No suitable parser found for file'];
-        }
-
-        const errors: string[] = [];
-
-        // Use specific validation if available
-        if (parser instanceof FluxKustomizationParser) {
-            errors.push(...parser.validateFluxKustomization(filePath));
-        } else if (parser instanceof StandardKustomizationParser) {
-            errors.push(...parser.validateStandardKustomization(filePath));
-        }
-
-        return errors;
-    }
-
-    /**
-     * Get file type based on parser
+     * Get file type based on content
      */
     public static getFileType(filePath: string): 'flux' | 'standard' | 'unknown' {
-        const parser = this.getParser(filePath);
-        return parser ? parser.getParserType() : 'unknown';
+        const parser = this.getParser();
+        // This is a simplification - you might want to enhance this based on your needs
+        return parser.isKustomizationFile(filePath) ? 'standard' : 'unknown';
     }
 
     /**
-     * Register a new parser
+     * Build the reference map
      */
-    public static registerParser(parser: BaseParser): void {
-        // Add parser at the beginning so custom parsers take precedence
-        this.parsers.unshift(parser);
-    }
-
-    /**
-     * Unregister a parser
-     */
-    public static unregisterParser(parserType: string): boolean {
-        const index = this.parsers.findIndex(p => p.getParserType() === parserType);
-        if (index > -1) {
-            this.parsers.splice(index, 1);
-            return true;
-        }
-        return false;
+    public static async buildReferenceMap(): Promise<void> {
+        await this.getParser().buildReferenceMap();
     }
 }

@@ -120,12 +120,18 @@ class ReferenceItem extends vscode.TreeItem {
         this.description = this.getDescription();
         this.iconPath = this.getIconPath();
 
-        // Add command for non-category items to make them clickable
-        if (contextValue !== 'category') {
+        // Add command for non-category and non-message items to make them clickable
+        if (contextValue !== 'category' && contextValue !== 'message') {
             this.command = {
                 command: 'vscode.open',
                 title: 'Open File',
                 arguments: [resourceUri]
+            };
+        } else if (contextValue === 'message') {
+            // For message items, use the command from the resourceUri
+            this.command = {
+                command: resourceUri.toString().replace('command:', ''),
+                title: 'Open File'
             };
         }
     }
@@ -134,6 +140,9 @@ class ReferenceItem extends vscode.TreeItem {
         if (this.contextValue === 'category') {
             return this.label;
         }
+        if (this.contextValue === 'message') {
+            return 'Click to open a file';
+        }
         const typeInfo = this.referenceType ? ` (${this.referenceType.toUpperCase()} Kustomization)` : '';
         const docInfo = this.documentCount ? `\nContains ${this.documentCount} YAML document${this.documentCount > 1 ? 's' : ''}` : '';
         const pathInfo = typeof this.fullPath === 'string' ? this.fullPath : this.fullPath?.path;
@@ -141,7 +150,7 @@ class ReferenceItem extends vscode.TreeItem {
     }
 
     private getDescription(): string {
-        if (this.contextValue === 'category') {
+        if (this.contextValue === 'category' || this.contextValue === 'message') {
             return '';
         }
         const typeBadge = this.referenceType ? `[${this.referenceType.toUpperCase()}] ` : '';
@@ -155,6 +164,8 @@ class ReferenceItem extends vscode.TreeItem {
                 return new vscode.ThemeIcon('folder');
             case 'kustomization':
                 return new vscode.ThemeIcon('file-code');
+            case 'message':
+                return new vscode.ThemeIcon('info');
             default:
                 return undefined;
         }
@@ -172,7 +183,12 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
     
     public refresh(uri?: vscode.Uri): void {
         if (uri) {
-            this.currentFile = uri;
+            // Only update current file if it's a YAML file
+            if (uri.fsPath.endsWith('.yaml') || uri.fsPath.endsWith('.yml')) {
+                this.currentFile = uri;
+            } else {
+                this.currentFile = undefined;
+            }
         }
         this._onDidChangeTreeData.fire(undefined);
     }
@@ -182,10 +198,6 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
     }
     
     getChildren(element?: ReferenceItem): Thenable<ReferenceItem[]> {
-        if (!this.currentFile) {
-            return Promise.resolve([]);
-        }
-        
         // If this is the root level
         if (!element) {
             return this.getRootItems();
@@ -203,6 +215,17 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
         const items: ReferenceItem[] = [];
         
         if (!this.currentFile) {
+            // If no file is selected or it's not a YAML file, show a message
+            items.push(new ReferenceItem(
+                'No YAML file selected',
+                vscode.TreeItemCollapsibleState.None,
+                vscode.Uri.parse('command:kustomizeNavigator.openFile'),
+                'message',
+                undefined,
+                undefined,
+                undefined,
+                undefined
+            ));
             return items;
         }
         
@@ -211,80 +234,94 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<ReferenceIte
         // Get backward references (files that reference this file)
         const backRefs = this.parser.getBackReferencesForFile(filePath) || [];
         
-        if (backRefs.length > 0) {
-            // Separate Flux and K8s references
-            const fluxRefs = backRefs.filter(ref => ref.type === 'flux');
-            const k8sRefs = backRefs.filter(ref => ref.type === 'k8s');
+        if (backRefs.length === 0) {
+            // If no references found, show a message
+            const isKustomization = this.parser.isKustomizationFile(filePath);
+            items.push(new ReferenceItem(
+                isKustomization ? 'No references found' : 'Not referenced by any kustomization files',
+                vscode.TreeItemCollapsibleState.None,
+                vscode.Uri.parse('command:kustomizeNavigator.openFile'),
+                'message',
+                undefined,
+                undefined,
+                undefined,
+                undefined
+            ));
+            return items;
+        }
 
-            // Process Flux references
-            if (fluxRefs.length > 0) {
-                const fluxChildren = await Promise.all(fluxRefs.map(async ref => {
-                    const filename = path.basename(ref.path);
-                    const folderName = path.basename(path.dirname(ref.path));
-                    const displayName = `${folderName}/${filename}`;
-                    
-                    // Get document count for the file
-                    const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
-                    const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent.toString());
-                    const docCount = yamlDocuments.length;
-                    
-                    return new ReferenceItem(
-                        displayName,
-                        vscode.TreeItemCollapsibleState.None,
-                        vscode.Uri.file(ref.path),
-                        'kustomization',
-                        undefined,
-                        { path: ref.path, type: 'flux' },
-                        docCount,
-                        'flux'
-                    );
-                }));
-                
-                // Add Flux references category with total document count
-                const totalFluxDocs = fluxChildren.reduce((sum, item) => sum + (item.documentCount || 1), 0);
-                items.push(new ReferenceItem(
-                    `Referenced by Flux (${fluxRefs.length} files, ${totalFluxDocs} total documents)`,
-                    vscode.TreeItemCollapsibleState.Expanded,
-                    this.currentFile,
-                    'category',
-                    fluxChildren
-                ));
-            }
+        // Separate Flux and K8s references
+        const fluxRefs = backRefs.filter(ref => ref.type === 'flux');
+        const k8sRefs = backRefs.filter(ref => ref.type === 'k8s');
 
-            // Process K8s references
-            if (k8sRefs.length > 0) {
-                const k8sChildren = await Promise.all(k8sRefs.map(async ref => {
-                    const filename = path.basename(ref.path);
-                    const folderName = path.basename(path.dirname(ref.path));
-                    const displayName = `${folderName}/${filename}`;
-                    
-                    // Get document count for the file
-                    const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
-                    const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent.toString());
-                    const docCount = yamlDocuments.length;
-                    
-                    return new ReferenceItem(
-                        displayName,
-                        vscode.TreeItemCollapsibleState.None,
-                        vscode.Uri.file(ref.path),
-                        'kustomization',
-                        undefined,
-                        { path: ref.path, type: 'k8s' },
-                        docCount,
-                        'k8s'
-                    );
-                }));
+        // Process Flux references
+        if (fluxRefs.length > 0) {
+            const fluxChildren = await Promise.all(fluxRefs.map(async ref => {
+                const filename = path.basename(ref.path);
+                const folderName = path.basename(path.dirname(ref.path));
+                const displayName = `${folderName}/${filename}`;
                 
-                // Add K8s references category with total document count
-                const totalK8sDocs = k8sChildren.reduce((sum, item) => sum + (item.documentCount || 1), 0);
-                items.push(new ReferenceItem(
-                    `Referenced by K8s (${k8sRefs.length} files, ${totalK8sDocs} total documents)`,
-                    vscode.TreeItemCollapsibleState.Expanded,
-                    this.currentFile,
-                    'category',
-                    k8sChildren
-                ));
-            }
+                // Get document count for the file
+                const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
+                const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent.toString());
+                const docCount = yamlDocuments.length;
+                
+                return new ReferenceItem(
+                    displayName,
+                    vscode.TreeItemCollapsibleState.None,
+                    vscode.Uri.file(ref.path),
+                    'kustomization',
+                    undefined,
+                    { path: ref.path, type: 'flux' },
+                    docCount,
+                    'flux'
+                );
+            }));
+            
+            // Add Flux references category with total document count
+            const totalFluxDocs = fluxChildren.reduce((sum, item) => sum + (item.documentCount || 1), 0);
+            items.push(new ReferenceItem(
+                `Referenced by Flux Kustomizations (${fluxRefs.length} files, ${totalFluxDocs} total documents)`,
+                vscode.TreeItemCollapsibleState.Expanded,
+                this.currentFile,
+                'category',
+                fluxChildren
+            ));
+        }
+
+        // Process K8s references
+        if (k8sRefs.length > 0) {
+            const k8sChildren = await Promise.all(k8sRefs.map(async ref => {
+                const filename = path.basename(ref.path);
+                const folderName = path.basename(path.dirname(ref.path));
+                const displayName = `${folderName}/${filename}`;
+                
+                // Get document count for the file
+                const fileContent = await vscode.workspace.fs.readFile(vscode.Uri.file(ref.path));
+                const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(fileContent.toString());
+                const docCount = yamlDocuments.length;
+                
+                return new ReferenceItem(
+                    displayName,
+                    vscode.TreeItemCollapsibleState.None,
+                    vscode.Uri.file(ref.path),
+                    'kustomization',
+                    undefined,
+                    { path: ref.path, type: 'k8s' },
+                    docCount,
+                    'k8s'
+                );
+            }));
+            
+            // Add K8s references category with total document count
+            const totalK8sDocs = k8sChildren.reduce((sum, item) => sum + (item.documentCount || 1), 0);
+            items.push(new ReferenceItem(
+                `Referenced by K8s Kustomizations (${k8sRefs.length} files, ${totalK8sDocs} total documents)`,
+                vscode.TreeItemCollapsibleState.Expanded,
+                this.currentFile,
+                'category',
+                k8sChildren
+            ));
         }
         
         return items;

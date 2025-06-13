@@ -54,6 +54,12 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.8.1
+- Improved handling of references for all YAML files
+- Enhanced display of Flux and K8s references
+- Better error handling and user feedback
+- More descriptive messages in references view
+
 ### 0.8.0
 - Create kustomization files by clicking links
 - Improved directory target handling

@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+namespace: test-namespace
+
+commonLabels:
+  app: test-app
+  environment: test
+
+configMapGenerator:
+  - name: test-config
+    literals:
+      - TEST_KEY=test-value
+
+secretGenerator:
+  - name: test-secret
+    literals:
+      - SECRET_KEY=secret-value 

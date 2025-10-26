@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - non-existent-file.yaml  # This file doesn't exist
+
+invalidField:  # This is not a valid kustomize field
+  someValue: test
+
+# Missing required fields and has invalid YAML structure
+commonLabels
+  app: test-app  # Missing colon after commonLabels 

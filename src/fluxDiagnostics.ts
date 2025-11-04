@@ -65,7 +65,8 @@ export class FluxDiagnosticProvider {
             gitopsComponents: checksConfig.get<boolean>('gitopsComponents', true),
             performanceIssues: checksConfig.get<boolean>('performanceIssues', true),
             variableSubstitution: checksConfig.get<boolean>('variableSubstitution', true),
-            indentation: checksConfig.get<boolean>('indentation', true)
+            indentation: checksConfig.get<boolean>('indentation', true),
+            deprecatedPatches: checksConfig.get<boolean>('deprecatedPatches', true)
         };
     }
     private analyzeDiagnostics(document: vscode.TextDocument) {
@@ -121,6 +122,9 @@ export class FluxDiagnosticProvider {
                 }
                 if (this.diagnosticConfig.performanceIssues) {
                     this.checkPerformanceIssues(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.deprecatedPatches) {
+                    this.checkDeprecatedPatches(document, parsed, diagnostics);
                 }
             }
             if (this.diagnosticConfig.indentation) {
@@ -696,6 +700,141 @@ export class FluxDiagnosticProvider {
 
         checkPrivileged(parsed, 'root');
     }
+
+    /**
+     * Find all occurrences of a field in YAML text, ensuring we match the correct one
+     * by checking context (e.g., within spec: block for Flux CRs)
+     */
+    private findFieldPositions(text: string, fieldName: string, contextPrefix?: string): number[] {
+        const positions: number[] = [];
+        const searchPattern = new RegExp(`(^|\\n)\\s*${fieldName}\\s*:`, 'gm');
+        let match: RegExpExecArray | null;
+
+        while ((match = searchPattern.exec(text)) !== null) {
+            const fieldPos = match.index + match[0].indexOf(fieldName);
+            
+            // If we need to check context (e.g., within spec: block)
+            if (contextPrefix) {
+                // Check if this field is within the expected context
+                const textBefore = text.substring(0, fieldPos);
+                const lastSpecIndex = textBefore.lastIndexOf(contextPrefix);
+                
+                // Verify this field is after the context prefix and before any document separator
+                if (lastSpecIndex !== -1) {
+                    const textAfterContext = textBefore.substring(lastSpecIndex);
+                    // Check if there's a document separator (---) between context and field
+                    if (!textAfterContext.includes('---')) {
+                        positions.push(fieldPos);
+                    }
+                }
+            } else {
+                // No context required, add all occurrences
+                // But check if it's not inside a comment or string
+                const lineStart = text.lastIndexOf('\n', fieldPos - 1) + 1;
+                const lineText = text.substring(lineStart, fieldPos);
+                if (!lineText.trim().startsWith('#')) {
+                    positions.push(fieldPos);
+                }
+            }
+        }
+
+        return positions;
+    }
+
+    private checkDeprecatedPatches(document: vscode.TextDocument, parsed: any, diagnostics: vscode.Diagnostic[]) {
+        const text = document.getText();
+        const isFluxKustomization = parsed.apiVersion?.startsWith('kustomize.toolkit.fluxcd.io/') && 
+                                   parsed.kind === 'Kustomization';
+        
+        // Check for patchesStrategicMerge (deprecated in Kustomize v5.0.0, February 2023)
+        // For standard kustomizations: check root level
+        if (!isFluxKustomization && parsed.patchesStrategicMerge && Array.isArray(parsed.patchesStrategicMerge) && parsed.patchesStrategicMerge.length > 0) {
+            const fieldPositions = this.findFieldPositions(text, 'patchesStrategicMerge');
+            
+            // Add diagnostic for each occurrence found
+            for (const fieldPos of fieldPositions) {
+                const startPos = document.positionAt(fieldPos);
+                const endPos = document.positionAt(fieldPos + 'patchesStrategicMerge'.length);
+                const range = new vscode.Range(startPos, endPos);
+
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Kustomize Navigator';
+                diagnostic.code = 'deprecated-patchesStrategicMerge';
+                diagnostics.push(diagnostic);
+            }
+        }
+
+        // Check for patchesJson6902 (deprecated in Kustomize v5.0.0, February 2023)
+        // For standard kustomizations: check root level
+        if (!isFluxKustomization && parsed.patchesJson6902 && Array.isArray(parsed.patchesJson6902) && parsed.patchesJson6902.length > 0) {
+            const fieldPositions = this.findFieldPositions(text, 'patchesJson6902');
+            
+            // Add diagnostic for each occurrence found
+            for (const fieldPos of fieldPositions) {
+                const startPos = document.positionAt(fieldPos);
+                const endPos = document.positionAt(fieldPos + 'patchesJson6902'.length);
+                const range = new vscode.Range(startPos, endPos);
+
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Kustomize Navigator';
+                diagnostic.code = 'deprecated-patchesJson6902';
+                diagnostics.push(diagnostic);
+            }
+        }
+
+        // Check Flux Kustomization CRs (spec.patchesStrategicMerge and spec.patchesJson6902)
+        // For Flux CRs: check within spec: block
+        if (parsed.spec) {
+            if (parsed.spec.patchesStrategicMerge && Array.isArray(parsed.spec.patchesStrategicMerge) && parsed.spec.patchesStrategicMerge.length > 0) {
+                const fieldPositions = this.findFieldPositions(text, 'patchesStrategicMerge', 'spec:');
+                
+                // Add diagnostic for each occurrence found within spec: context
+                for (const fieldPos of fieldPositions) {
+                    const startPos = document.positionAt(fieldPos);
+                    const endPos = document.positionAt(fieldPos + 'patchesStrategicMerge'.length);
+                    const range = new vscode.Range(startPos, endPos);
+
+                    const diagnostic = new vscode.Diagnostic(
+                        range,
+                        "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
+                        vscode.DiagnosticSeverity.Warning
+                    );
+                    diagnostic.source = 'Kustomize Navigator';
+                    diagnostic.code = 'deprecated-patchesStrategicMerge';
+                    diagnostics.push(diagnostic);
+                }
+            }
+
+            if (parsed.spec.patchesJson6902 && Array.isArray(parsed.spec.patchesJson6902) && parsed.spec.patchesJson6902.length > 0) {
+                const fieldPositions = this.findFieldPositions(text, 'patchesJson6902', 'spec:');
+                
+                // Add diagnostic for each occurrence found within spec: context
+                for (const fieldPos of fieldPositions) {
+                    const startPos = document.positionAt(fieldPos);
+                    const endPos = document.positionAt(fieldPos + 'patchesJson6902'.length);
+                    const range = new vscode.Range(startPos, endPos);
+
+                    const diagnostic = new vscode.Diagnostic(
+                        range,
+                        "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
+                        vscode.DiagnosticSeverity.Warning
+                    );
+                    diagnostic.source = 'Kustomize Navigator';
+                    diagnostic.code = 'deprecated-patchesJson6902';
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+
     public dispose() {
         this.diagnosticCollection.dispose();
         for (const disposable of this.disposables) {

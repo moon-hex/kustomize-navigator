@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate and manage Kustomize references in your Kubernetes manifests",
-  "version": "0.8.1",
+  "version": "0.8.4",
   "icon": "images/vscode-extension-icon.png",
   "engines": {
     "vscode": ">=1.0.0"
@@ -144,6 +144,11 @@
           "type": "boolean",
           "default": true,
           "description": "Check for consistent YAML indentation"
+        },
+        "kustomizeNavigator.diagnostics.checks.deprecatedPatches": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn about deprecated patch fields (patchesStrategicMerge, patchesJson6902)"
         }
       }
     }

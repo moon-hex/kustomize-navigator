@@ -216,19 +216,50 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         for (const patch of patches) {
             let patchPath: string | undefined;
             let displayName: string | undefined;
+            let isInline = false;
 
             if (typeof patch === 'string') {
+                // String format: patches: [patch.yaml]
                 patchPath = patch;
                 displayName = patch;
-            } else if (patch?.path && typeof patch.path === 'string') {
-                patchPath = patch.path;
-                displayName = patch.path;
+            } else if (patch && typeof patch === 'object') {
+                if (patch.path && typeof patch.path === 'string') {
+                    // Object format with path: patches: [{path: patch.yaml, target: {...}}]
+                    patchPath = patch.path;
+                    displayName = patch.path;
+                } else if (patch.patch) {
+                    // Inline patch format: patches: [{patch: |-...}, target: {...}]
+                    isInline = true;
+                    displayName = 'inline patch';
+                }
             }
 
-            if (patchPath && displayName) {
+            if (isInline) {
+                // Show inline patch info
+                let targetInfo = '';
+                if (patch?.target?.kind) {
+                    targetInfo = ` (Target: ${patch.target.kind}`;
+                    if (patch.target.name) {
+                        targetInfo += `/${patch.target.name}`;
+                    }
+                    targetInfo += ')';
+                }
+                hoverContent.appendMarkdown(`- \`${displayName}\`${targetInfo}\n`);
+            } else if (patchPath && displayName) {
+                // Show linkable patch
                 const fullPath = path.resolve(path.dirname(basePath), patchPath);
                 const patchUri = vscode.Uri.file(fullPath);
-                hoverContent.appendMarkdown(`- [\`${displayName}\`](${patchUri.toString()})\n`);
+                
+                let targetInfo = '';
+                if (patch?.target?.kind) {
+                    targetInfo = ` (Target: ${patch.target.kind}`;
+                    if (patch.target.name) {
+                        targetInfo += `/${patch.target.name}`;
+                    }
+                    targetInfo += ')';
+                }
+                
+                hoverContent.appendMarkdown(`- [\`${displayName}\`](${patchUri.toString()})${targetInfo}\n`);
             }
         }
     }

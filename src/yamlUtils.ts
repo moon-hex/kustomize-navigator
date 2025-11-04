@@ -107,6 +107,7 @@ export class YamlUtils {
 
     /**
      * Find a reference string in the document text, handling quotes and YAML syntax
+     * Supports finding references in both string format and object format (e.g., path: reference)
      */
     public static findReferenceInText(text: string, reference: string): number {
         // Try with double quotes first
@@ -123,20 +124,35 @@ export class YamlUtils {
 
         // Try without quotes (YAML unquoted string)
         // Look for pattern like "path: reference" or "- reference"
+        // Enhanced patterns to better match YAML structure:
+        // 1. path: reference (in patch objects)
+        // 2. - reference (in arrays)
+        // 3. : reference (as value)
+        // 4. path:\n  reference (multiline, with indentation)
+        const escapedRef = YamlUtils.escapeRegex(reference);
         const patterns = [
-            new RegExp(`path:\\s*${YamlUtils.escapeRegex(reference)}(?=\\s|$)`, 'g'),
-            new RegExp(`-\\s*${YamlUtils.escapeRegex(reference)}(?=\\s|$)`, 'g'),
-            new RegExp(`:\\s*${YamlUtils.escapeRegex(reference)}(?=\\s|$)`, 'g')
+            // Match "path: reference" (can be on same line or following line with indentation)
+            new RegExp(`path:\\s*${escapedRef}(?=\\s|$|\\n)`, 'g'),
+            // Match "- reference" (array item)
+            new RegExp(`-\\s*${escapedRef}(?=\\s|$|\\n)`, 'g'),
+            // Match ": reference" (as value)
+            new RegExp(`:\\s*${escapedRef}(?=\\s|$|\\n)`, 'g'),
+            // Match multiline YAML with indentation: "path:\n  reference"
+            new RegExp(`path:\\s*\\n\\s+${escapedRef}(?=\\s|$|\\n)`, 'g')
         ];
 
         for (const pattern of patterns) {
+            // Reset regex lastIndex to search from beginning
+            pattern.lastIndex = 0;
             const match = pattern.exec(text);
             if (match) {
                 // Find where the reference starts within the match
                 const matchStart = match.index;
                 const matchText = match[0];
                 const refStart = matchText.indexOf(reference);
-                return matchStart + refStart;
+                if (refStart !== -1) {
+                    return matchStart + refStart;
+                }
             }
         }
 

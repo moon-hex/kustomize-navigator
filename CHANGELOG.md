@@ -6,6 +6,23 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.8.2] - 2025-01-XX
+
+### Added
+- Comprehensive support for all patch formats (string, object with path, inline patches)
+- Enhanced reference detection for patch objects in YAML
+
+### Changed
+- Improved linking and highlighting for `patches` field (recommended format)
+- Maintained backward compatibility with deprecated `patchesStrategicMerge` and `patchesJson6902`
+
+## [0.8.1] - 2025-XX-XX
+
+### Changed
+- Improved handling of references for all YAML files
+- Enhanced display of Flux and K8s references
+- Better error handling and user feedback
+
 ## [0.8.0] - 2025-06-13
 
 ### Added

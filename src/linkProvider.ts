@@ -105,14 +105,17 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             await this.addFluxLinkForReference(document, 'path', spec.path, links, diagnostics);
         }
 
-        // Process patches
+        // Process patches - supports string format, object with path, and inline patches
         if (Array.isArray(spec.patches)) {
             for (const patch of spec.patches) {
                 if (typeof patch === 'string') {
+                    // String format: patches: [patch.yaml]
                     await this.addFluxLinkForReference(document, 'patches', patch, links, diagnostics);
                 } else if (patch && typeof patch === 'object' && patch.path) {
+                    // Object format with path: patches: [{path: patch.yaml, target: {...}}]
                     await this.addFluxLinkForReference(document, 'patches', patch.path, links, diagnostics);
                 }
+                // Inline patches (with patch field but no path) don't need linking
             }
         }
 
@@ -160,7 +163,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             'resources',
             'bases',
             'components',
-            'patches',
             'patchesStrategicMerge',
             'configurations',
             'crds',
@@ -172,15 +174,32 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             if (Array.isArray(content[field])) {
                 console.log(`Found ${content[field].length} entries in ${field}`);
                 for (const reference of content[field]) {
-                    await this.addStandardLinkForReference(document, reference, baseDir, links, diagnostics);
+                    if (typeof reference === 'string') {
+                        await this.addStandardLinkForReference(document, reference, baseDir, links, diagnostics);
+                    }
                 }
             }
         }
 
-        // Handle JSON 6902 patches which have a path field
+        // Handle patches field - supports both string paths and objects with path field
+        if (Array.isArray(content.patches)) {
+            console.log(`Found ${content.patches.length} entries in patches`);
+            for (const patch of content.patches) {
+                if (typeof patch === 'string') {
+                    // String format: patches: [patch.yaml]
+                    await this.addStandardLinkForReference(document, patch, baseDir, links, diagnostics);
+                } else if (patch && typeof patch === 'object' && patch.path) {
+                    // Object format with path: patches: [{path: patch.yaml, target: {...}}]
+                    await this.addStandardLinkForReference(document, patch.path, baseDir, links, diagnostics);
+                }
+                // Inline patches (with patch field but no path) don't need linking
+            }
+        }
+
+        // Handle JSON 6902 patches which have a path field (deprecated but still supported)
         if (Array.isArray(content.patchesJson6902)) {
             for (const patch of content.patchesJson6902) {
-                if (patch.path) {
+                if (patch && typeof patch === 'object' && patch.path) {
                     await this.addStandardLinkForReference(document, patch.path, baseDir, links, diagnostics);
                 }
             }

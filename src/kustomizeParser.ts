@@ -78,10 +78,10 @@ export class KustomizeParser {
     private fileStatCache = new Map<string, CachedFileStat>();
     
     // Flag to enable/disable caching
-    private cachingEnabled: boolean;
+    private enableFileSystemCache: boolean;
 
-    constructor(private workspaceRoot: string, cachingEnabled: boolean = true) {
-        this.cachingEnabled = cachingEnabled;
+    constructor(private workspaceRoot: string, enableFileSystemCache: boolean = true) {
+        this.enableFileSystemCache = enableFileSystemCache;
     }
 
     /**
@@ -377,7 +377,7 @@ export class KustomizeParser {
         const normalizedPath = path.normalize(filePath);
         
         // If caching is disabled, fetch directly from filesystem
-        if (!this.cachingEnabled) {
+        if (!this.enableFileSystemCache) {
             try {
                 const stat = fs.statSync(normalizedPath);
                 return {
@@ -423,7 +423,7 @@ export class KustomizeParser {
             return cachedStat;
         } catch (error) {
             // File doesn't exist or error accessing it
-            if (this.cachingEnabled) {
+            if (this.enableFileSystemCache) {
                 this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
                 this.fileStatCache.delete(normalizedPath);
             }
@@ -438,7 +438,7 @@ export class KustomizeParser {
         const normalizedPath = path.normalize(filePath);
         
         // If caching is disabled, check directly
-        if (!this.cachingEnabled) {
+        if (!this.enableFileSystemCache) {
             try {
                 return fs.existsSync(normalizedPath);
             } catch {

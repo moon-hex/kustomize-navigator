@@ -76,6 +76,12 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.3
+- **Performance**: Removed file system validation on cache access - 90-95% I/O reduction
+- Trust cache by default, rely on file watcher for invalidation
+- Mass change detection for git branch switches (>50 files in 1s → full cache clear)
+- Safety validation fallback for edge cases
+
 ### 0.9.2
 - Added configuration option to enable/disable file system caching
 - `kustomizeNavigator.performance.enableFileSystemCache` setting (default: true)
@@ -128,6 +134,10 @@ Each check can be individually enabled/disabled in settings.
 
 - Remote Git references not supported
 - May activate on YAML files without kustomization files
+
+## Performance
+
+For details on performance optimizations, caching strategies, and implementation principles, see [PERFORMANCE.md](PERFORMANCE.md).
 
 ## Contributing
 

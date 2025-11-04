@@ -372,6 +372,7 @@ export class KustomizeParser {
 
     /**
      * Get cached file stat or fetch from filesystem
+     * Trusts cache entries (no validation on access) - relies on file watcher for invalidation
      */
     private getCachedStat(filePath: string): CachedFileStat | null {
         const normalizedPath = path.normalize(filePath);
@@ -390,26 +391,14 @@ export class KustomizeParser {
             }
         }
         
+        // Check cache first - trust it by default (no validation)
+        const cached = this.fileStatCache.get(normalizedPath);
+        if (cached) {
+            return cached;
+        }
+        
+        // Cache miss - fetch from filesystem
         try {
-            // Check cache first
-            const cached = this.fileStatCache.get(normalizedPath);
-            if (cached) {
-                // Verify cache is still valid by checking current mtime
-                try {
-                    const currentStat = fs.statSync(normalizedPath);
-                    if (currentStat.mtimeMs === cached.mtime) {
-                        return cached;
-                    }
-                    // Cache invalid - file changed, update it
-                } catch {
-                    // File might have been deleted, remove from cache
-                    this.fileStatCache.delete(normalizedPath);
-                    this.fileExistsCache.delete(normalizedPath);
-                    return null;
-                }
-            }
-            
-            // Cache miss or invalid - fetch from filesystem
             const stat = fs.statSync(normalizedPath);
             const cachedStat: CachedFileStat = {
                 mtime: stat.mtimeMs,
@@ -423,16 +412,16 @@ export class KustomizeParser {
             return cachedStat;
         } catch (error) {
             // File doesn't exist or error accessing it
-            if (this.enableFileSystemCache) {
-                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
-                this.fileStatCache.delete(normalizedPath);
-            }
+            this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
+            this.fileStatCache.delete(normalizedPath);
             return null;
         }
     }
 
     /**
      * Check if file exists (cached if enabled)
+     * Trusts cache entries (no validation on access) - relies on file watcher for invalidation
+     * Includes safety fallback: if file operation fails unexpectedly, validates that entry
      */
     public cachedFileExists(filePath: string): boolean {
         const normalizedPath = path.normalize(filePath);
@@ -446,30 +435,19 @@ export class KustomizeParser {
             }
         }
         
-        // Check cache first
+        // Check cache first - trust it by default (no validation)
         const cached = this.fileExistsCache.get(normalizedPath);
         if (cached) {
-            // If cached as non-existent with NON_EXISTENT_FILE_MTIME, return immediately (no need to check)
-            if (!cached.exists && cached.mtime === NON_EXISTENT_FILE_MTIME) {
+            // If cached as non-existent, return immediately
+            if (!cached.exists) {
                 return false;
             }
             
-            // Verify cache is still valid by checking current mtime
-            try {
-                const currentStat = fs.statSync(normalizedPath);
-                if (currentStat.mtimeMs === cached.mtime) {
-                    return cached.exists;
-                }
-                // Cache invalid - file changed, will update below
-            } catch {
-                // File doesn't exist anymore
-                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
-                this.fileStatCache.delete(normalizedPath);
-                return false;
-            }
+            // Cached as exists - trust it, but we'll validate on actual file operation if it fails
+            return true;
         }
         
-        // Cache miss or invalid - check filesystem and cache result
+        // Cache miss - check filesystem and cache result
         try {
             const stat = fs.statSync(normalizedPath);
             this.fileExistsCache.set(normalizedPath, { exists: true, mtime: stat.mtimeMs });
@@ -484,6 +462,33 @@ export class KustomizeParser {
             this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
             this.fileStatCache.delete(normalizedPath);
             return false;
+        }
+    }
+    
+    /**
+     * Safety validation: if a file operation fails unexpectedly, validate and update cache
+     * This is a fallback for edge cases where file watcher might miss changes
+     */
+    public validateAndUpdateCache(filePath: string): void {
+        if (!this.enableFileSystemCache) {
+            return;
+        }
+        
+        const normalizedPath = path.normalize(filePath);
+        this.invalidateFileCache(normalizedPath);
+        
+        // Re-check and update cache
+        try {
+            const stat = fs.statSync(normalizedPath);
+            this.fileExistsCache.set(normalizedPath, { exists: true, mtime: stat.mtimeMs });
+            this.fileStatCache.set(normalizedPath, {
+                mtime: stat.mtimeMs,
+                isDirectory: stat.isDirectory(),
+                isFile: stat.isFile()
+            });
+        } catch {
+            this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
+            this.fileStatCache.delete(normalizedPath);
         }
     }
 
@@ -550,8 +555,8 @@ export class KustomizeParser {
                             continue;
                         }
                         
+                        let resolvedPath: string | undefined;
                         try {
-                            let resolvedPath;
                             if (typeof refPath === 'string') {
                                 resolvedPath = this.resolveReference(filePath, refPath);
                             } else if (typeof refPath === 'object' && refPath.path) {
@@ -580,6 +585,10 @@ export class KustomizeParser {
                             }
                         } catch (error) {
                             console.warn(`Failed to resolve reference from ${filePath}:`, error);
+                            // Safety fallback: if file operation fails unexpectedly, validate cache
+                            if (resolvedPath && this.enableFileSystemCache) {
+                                this.validateAndUpdateCache(resolvedPath);
+                            }
                         }
                     }
                 };

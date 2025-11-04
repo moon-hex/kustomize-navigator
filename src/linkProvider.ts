@@ -200,6 +200,21 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     }
 
     /**
+     * Find the first line starting with apiVersion: in the document
+     * Returns the line number, or null if not found
+     */
+    private findFirstApiVersionLine(document: vscode.TextDocument): number | null {
+        for (let i = 0; i < document.lineCount; i++) {
+            const line = document.lineAt(i);
+            const trimmedLine = line.text.trim();
+            if (trimmedLine.startsWith('apiVersion:')) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Process back references for non-kustomization files
      */
     private async processBackReferences(
@@ -210,18 +225,38 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         const backReferences = this.parser.getBackReferencesForFile(document.fileName);
 
         if (backReferences.length > 0) {
-            // Add a comment at the top of the file showing the back references
-            const firstLine = document.lineAt(0);
-            const range = new vscode.Range(
-                new vscode.Position(0, 0),
-                new vscode.Position(0, 0)
-            );
+            // Find the first line starting with apiVersion:
+            const apiVersionLineNum = this.findFirstApiVersionLine(document);
+            
+            if (apiVersionLineNum === null) {
+                // Fallback to first line if apiVersion: not found
+                const firstLine = document.lineAt(0);
+                for (const ref of backReferences) {
+                    const uri = vscode.Uri.file(ref.path);
+                    const linkRange = new vscode.Range(
+                        firstLine.range.start,
+                        firstLine.range.end
+                    );
+                    const docLink = new vscode.DocumentLink(linkRange, uri);
+                    docLink.tooltip = `Referenced by ${ref.type.toUpperCase()} Kustomization: ${path.basename(ref.path)}`;
+                    links.push(docLink);
+                }
+                return;
+            }
+
+            const apiVersionLine = document.lineAt(apiVersionLineNum);
+            // Select whole line until EOL or # (comment)
+            const lineText = apiVersionLine.text;
+            const commentIndex = lineText.indexOf('#');
+            const endPosition = commentIndex >= 0 
+                ? new vscode.Position(apiVersionLineNum, commentIndex)
+                : apiVersionLine.range.end;
 
             for (const ref of backReferences) {
                 const uri = vscode.Uri.file(ref.path);
                 const linkRange = new vscode.Range(
-                    firstLine.range.start,
-                    firstLine.range.start.translate(0, 30)
+                    apiVersionLine.range.start,
+                    endPosition
                 );
                 const docLink = new vscode.DocumentLink(linkRange, uri);
                 docLink.tooltip = `Referenced by ${ref.type.toUpperCase()} Kustomization: ${path.basename(ref.path)}`;

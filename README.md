@@ -76,6 +76,11 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.4
+- **Fixed**: Back reference links now correctly placed on first `apiVersion:` line (handles multi-YAML with `---`, comments, empty lines)
+- Link range extends to end of line or comment marker
+- Hover tooltip triggers on `apiVersion:` line
+
 ### 0.9.3
 - **Performance**: Removed file system validation on cache access - 90-95% I/O reduction
 - Trust cache by default, rely on file watcher for invalidation

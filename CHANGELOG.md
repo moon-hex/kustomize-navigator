@@ -6,6 +6,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.4] - 2025-11-04
+
+### Fixed
+- **Back reference link placement**: Back reference links now appear on the first `apiVersion:` line instead of line 0
+- Handles multi-YAML files with `---` separators, comments, and empty lines at the top
+- Link range now extends to end of line or `#` comment marker
+- Hover tooltip for back references now triggers on the `apiVersion:` line instead of line 0
+
 ## [0.9.3] - 2025-11-04
 
 ### Performance Improvements

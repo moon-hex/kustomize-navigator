@@ -75,6 +75,11 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.8.4
+- Fixed array element validation and improved regex pattern matching
+- Enhanced deprecation warning detection for multi-document YAML files
+- Improved type safety with strict equality checks
+
 ### 0.8.3
 - Added deprecation warnings for `patchesStrategicMerge` and `patchesJson6902`
 - Added quick fix code action to transform deprecated fields to `patches` format

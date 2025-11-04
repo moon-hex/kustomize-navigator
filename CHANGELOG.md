@@ -6,6 +6,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.8.4] - 2025-11-04
+
+### Fixed
+- Fixed array element validation in linkProvider to handle null/undefined values
+- Improved regex patterns in yamlUtils to support all YAML reference formats
+- Enhanced deprecation warning detection to correctly match occurrences in multi-document YAML files
+- Added context-aware field matching to prevent false positives in deprecation warnings
+
+### Changed
+- Replaced loose equality checks with strict equality for better type safety
+
 ## [0.8.3] - 2025-11-04
 
 ### Added

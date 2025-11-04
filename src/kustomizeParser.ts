@@ -189,7 +189,7 @@ export class KustomizeParser {
 
             return results;
         } catch (error) {
-            console.log(`Error parsing file ${filePath}:`, error);
+            console.error(`Error parsing file ${filePath}:`, error);
             return [];
         }
     }
@@ -217,7 +217,7 @@ export class KustomizeParser {
 
             return allReferences;
         } catch (error) {
-            console.log(`Error getting Flux references for ${filePath}:`, error);
+            console.error(`Error getting Flux references for ${filePath}:`, error);
             return [];
         }
     }
@@ -531,11 +531,8 @@ export class KustomizeParser {
 
         // Check if file has changed
         if (!this.hasFileChanged(normalizedPath)) {
-            console.log(`File ${normalizedPath} unchanged, skipping update`);
             return;
         }
-
-        console.log(`Updating references for ${normalizedPath} (incremental)`);
         
         // Update this file's references
         this.updateFileReferences(normalizedPath);
@@ -551,7 +548,6 @@ export class KustomizeParser {
         // Update dependent files
         for (const dependentFile of filesToUpdate) {
             if (fs.existsSync(dependentFile)) {
-                console.log(`Cascading update for ${dependentFile} (references ${normalizedPath})`);
                 this.updateFileReferences(dependentFile);
             }
         }

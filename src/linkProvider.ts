@@ -18,14 +18,12 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         document: vscode.TextDocument,
         token: vscode.CancellationToken
     ): Promise<vscode.DocumentLink[]> {
-        console.log(`Providing links for: ${document.fileName}`);
         const text = document.getText();
         const links: vscode.DocumentLink[] = [];
         const diagnostics: vscode.Diagnostic[] = [];
 
         // Only process YAML files
         if (!document.fileName.endsWith('.yaml') && !document.fileName.endsWith('.yml')) {
-            console.log(`Skipping non-YAML file: ${document.fileName}`);
             return links;
         }
 
@@ -34,16 +32,12 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             const yamlDocuments = YamlUtils.parseMultipleYamlDocuments(text);
 
             if (yamlDocuments.length === 0) {
-                console.log(`No YAML content in: ${document.fileName}`);
                 return links;
             }
-
-            console.log(`Found ${yamlDocuments.length} YAML document(s) in: ${document.fileName}`);
 
             // Process each YAML document
             for (let i = 0; i < yamlDocuments.length; i++) {
                 const content = yamlDocuments[i];
-                console.log(`Processing YAML document ${i + 1}/${yamlDocuments.length}`);
 
                 // Check if this document is a Flux Kustomization CR
                 const isFluxKustomization = YamlUtils.isFluxKustomizationDocument(content);
@@ -54,10 +48,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                     YamlUtils.isStandardKustomizationDocument(content);
 
                 if (isFluxKustomization) {
-                    console.log(`Processing Flux Kustomization CR in document ${i + 1}: ${document.fileName}`);
                     await this.processFluxKustomizationReferences(document, content, links, diagnostics);
                 } else if (isStandardKustomization) {
-                    console.log(`Processing standard kustomization in document ${i + 1}: ${document.fileName}`);
                     await this.processKustomizationReferences(document, content, links, diagnostics);
                 }
             }
@@ -69,15 +61,12 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             );
 
             if (!hasKustomizationDocs) {
-                console.log(`Processing non-kustomization file: ${document.fileName}`);
                 // For non-kustomization files, add links to files that reference this one
                 await this.processBackReferences(document, links);
             }
 
             // Update diagnostics for this document
             this.diagnosticCollection.set(document.uri, diagnostics);
-
-            console.log(`Found ${links.length} links and ${diagnostics.length} diagnostics in: ${document.fileName}`);
         } catch (error) {
             console.error(`Error processing links for ${document.fileName}:`, error);
         }
@@ -175,7 +164,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
         for (const field of referenceFields) {
             if (Array.isArray(content[field])) {
-                console.log(`Found ${content[field].length} entries in ${field}`);
                 for (const reference of content[field]) {
                     if (reference !== null && reference !== undefined && typeof reference === 'string') {
                         await this.addStandardLinkForReference(document, reference, baseDir, links, diagnostics);
@@ -186,7 +174,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
         // Handle patches field - supports both string paths and objects with path field
         if (Array.isArray(content.patches)) {
-            console.log(`Found ${content.patches.length} entries in patches`);
             for (const patch of content.patches) {
                 if (patch === null || patch === undefined) {
                     continue;
@@ -221,7 +208,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     ): Promise<void> {
         // Get files that reference this file
         const backReferences = this.parser.getBackReferencesForFile(document.fileName);
-        console.log(`Found ${backReferences.length} back references for: ${document.fileName}`);
 
         if (backReferences.length > 0) {
             // Add a comment at the top of the file showing the back references
@@ -240,7 +226,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 const docLink = new vscode.DocumentLink(linkRange, uri);
                 docLink.tooltip = `Referenced by ${ref.type.toUpperCase()} Kustomization: ${path.basename(ref.path)}`;
                 links.push(docLink);
-                console.log(`Added back reference link to: ${ref.path} (${ref.type})`);
             }
         }
     }
@@ -256,7 +241,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         links: vscode.DocumentLink[],
         diagnostics: vscode.Diagnostic[]
     ): Promise<void> {
-        console.log(`Adding Flux link for ${fieldName}: ${reference}`);
 
         try {
             // Find the reference in the document text
@@ -264,7 +248,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             const referenceIndex = YamlUtils.findReferenceInText(text, reference);
 
             if (referenceIndex === -1) {
-                console.log(`Could not find Flux reference ${reference} in document text`);
                 return;
             }
 
@@ -282,7 +265,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 resolvedPath = path.resolve(gitRoot, cleanReference);
             }
 
-            console.log(`Flux path resolved: ${reference} → ${resolvedPath} (via Git root: ${gitRoot})`);
 
             // Create position and range for the link
             const pos = document.positionAt(referenceIndex);
@@ -305,22 +287,18 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                     targetPath = kustomizationPath;
                     targetIsKustomization = true;
                     fileExists = true;
-                    console.log(`Found kustomization.yaml inside Flux target directory: ${targetPath}`);
                 } else if (fs.existsSync(kustomizationPathYml)) {
                     targetPath = kustomizationPathYml;
                     targetIsKustomization = true;
                     fileExists = true;
-                    console.log(`Found kustomization.yml inside Flux target directory: ${targetPath}`);
                 } else {
                     // Directory exists but no kustomization file - create one when clicked
                     targetPath = kustomizationPath;  // Default to kustomization.yaml
                     fileExists = false;
-                    console.log(`Directory exists but no kustomization file, will create: ${targetPath}`);
                 }
             } else if (!fileExists && !resolvedPath.endsWith('.yaml') && !resolvedPath.endsWith('.yml')) {
                 // If the target doesn't exist and doesn't have a yaml extension, treat it as a directory
                 targetPath = path.join(resolvedPath, 'kustomization.yaml');
-                console.log(`Target is a directory, will create: ${targetPath}`);
             }
 
             // Create the link
@@ -337,7 +315,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             }
 
             links.push(docLink);
-            console.log(`Added Flux link to: ${targetPath}`);
 
             // Add diagnostic if file doesn't exist
             if (!fileExists) {
@@ -355,7 +332,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 );
                 diagnostic.source = 'Flux Kustomize Navigator';
                 diagnostics.push(diagnostic);
-                console.log(`Added diagnostic for missing file: ${errorMessage}`);
             }
 
         } catch (error) {
@@ -373,7 +349,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         links: vscode.DocumentLink[],
         diagnostics: vscode.Diagnostic[]
     ): Promise<void> {
-        console.log(`Trying to add standard link for reference: ${reference}`);
 
         try {
             // Find the reference in the document text
@@ -381,13 +356,11 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             const referenceIndex = YamlUtils.findReferenceInText(text, reference);
 
             if (referenceIndex === -1) {
-                console.log(`Could not find reference ${reference} in document text`);
                 return;
             }
 
             // Resolve the reference to a file path (relative to file location)
             let resolvedPath = path.resolve(baseDir, reference);
-            console.log(`Standard path resolved: ${reference} → ${resolvedPath}`);
 
             // Create position and range for the link
             const pos = document.positionAt(referenceIndex);
@@ -409,22 +382,18 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                     resolvedPath = kustomizationPath;
                     targetIsKustomization = true;
                     fileExists = true;
-                    console.log(`Found kustomization.yaml inside directory`);
                 } else if (fs.existsSync(kustomizationPathYml)) {
                     resolvedPath = kustomizationPathYml;
                     targetIsKustomization = true;
                     fileExists = true;
-                    console.log(`Found kustomization.yml inside directory`);
                 } else {
                     // Directory exists but no kustomization file - create one when clicked
                     resolvedPath = kustomizationPath;  // Default to kustomization.yaml
                     fileExists = false;
-                    console.log(`Directory exists but no kustomization file, will create: ${resolvedPath}`);
                 }
             } else if (!fileExists && !resolvedPath.endsWith('.yaml') && !resolvedPath.endsWith('.yml')) {
                 // If the target doesn't exist and doesn't have a yaml extension, treat it as a directory
                 resolvedPath = path.join(resolvedPath, 'kustomization.yaml');
-                console.log(`Target is a directory, will create: ${resolvedPath}`);
             }
 
             // Create link
@@ -435,7 +404,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 : `Create kustomization: ${reference} (file relative)`;
 
             links.push(docLink);
-            console.log(`Added standard link to ${resolvedPath}`);
 
             // Add diagnostic if file doesn't exist
             if (!fileExists) {
@@ -453,7 +421,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 );
                 diagnostic.source = 'Kustomize Navigator';
                 diagnostics.push(diagnostic);
-                console.log(`Added diagnostic for missing file: ${errorMessage}`);
             }
         } catch (error) {
             console.error(`Error creating standard link for ${reference}:`, error);
@@ -479,7 +446,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             });
             const gitRoot = result.trim();
             this.gitRootCache.set(cacheKey, gitRoot);
-            console.log(`Git root found for ${filePath}: ${gitRoot}`);
             return gitRoot;
         } catch (error) {
             // Fallback to directory of the file

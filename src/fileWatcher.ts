@@ -63,7 +63,6 @@ export class KustomizeFileWatcher {
 
         // Check if this could be a Flux Kustomization CR
         if (this.parser.isFluxKustomizationFile(uri.fsPath)) {
-            console.log(`Detected Flux Kustomization CR: ${uri.fsPath}`);
             this.debouncedIncrementalUpdate(uri.fsPath);
         }
     }
@@ -101,7 +100,6 @@ export class KustomizeFileWatcher {
     }
 
     private async updateReferences(): Promise<void> {
-        console.log('Updating kustomization references (including Flux CRs)...');
         // Use full rebuild for now - will be called with specific file path in incremental version
         await this.parser.buildReferenceMap();
     }

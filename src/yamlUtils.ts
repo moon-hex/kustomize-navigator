@@ -110,35 +110,54 @@ export class YamlUtils {
      * Supports finding references in both string format and object format (e.g., path: reference)
      */
     public static findReferenceInText(text: string, reference: string): number {
-        // Try with double quotes first
+        // Try with double quotes first (exact match)
         let index = text.indexOf(`"${reference}"`);
         if (index !== -1) {
             return index + 1; // +1 to skip the quote
         }
 
-        // Try with single quotes
+        // Try with single quotes (exact match)
         index = text.indexOf(`'${reference}'`);
         if (index !== -1) {
             return index + 1; // +1 to skip the quote
         }
 
-        // Try without quotes (YAML unquoted string)
-        // Look for pattern like "path: reference" or "- reference"
-        // Enhanced patterns to better match YAML structure:
-        // 1. path: reference (in patch objects)
-        // 2. - reference (in arrays)
-        // 3. : reference (as value)
-        // 4. path:\n  reference (multiline, with indentation)
+        // Escape the reference for regex (handles special characters)
         const escapedRef = YamlUtils.escapeRegex(reference);
+        
+        // Word boundary check - ensure reference is not part of a larger word
+        // For file paths, we want exact matches but allow them to be part of quoted strings
+        // Use negative lookbehind and lookahead to ensure boundaries
+        // Allow whitespace, colons, quotes, brackets, commas before/after
+        const wordBoundaryStart = '(?<![\\w\\-./\\\\])'; // Not preceded by word char, hyphen, dot, slash, or backslash
+        const wordBoundaryEnd = '(?![\\w\\-./\\\\])';   // Not followed by word char, hyphen, dot, slash, or backslash
+        
+        // Build patterns for various YAML formats
         const patterns = [
-            // Match "path: reference" (can be on same line or following line with indentation)
-            new RegExp(`path:\\s*${escapedRef}(?=\\s|$|\\n)`, 'g'),
-            // Match "- reference" (array item)
-            new RegExp(`-\\s*${escapedRef}(?=\\s|$|\\n)`, 'g'),
-            // Match ": reference" (as value)
-            new RegExp(`:\\s*${escapedRef}(?=\\s|$|\\n)`, 'g'),
-            // Match multiline YAML with indentation: "path:\n  reference"
-            new RegExp(`path:\\s*\\n\\s+${escapedRef}(?=\\s|$|\\n)`, 'g')
+            // 1. Match "path: reference" (same line, with optional trailing comment or whitespace)
+            //    Example: path: patch.yaml or path: patch.yaml # comment
+            new RegExp(`path:\\s*${wordBoundaryStart}${escapedRef}${wordBoundaryEnd}(?=\\s|$|#|\\n|,|\\}|\\])`, 'g'),
+            
+            // 2. Match "- reference" (array item, block style)
+            //    Example: - patch.yaml or - patch.yaml # comment
+            new RegExp(`-\\s+${wordBoundaryStart}${escapedRef}${wordBoundaryEnd}(?=\\s|$|#|\\n|,|\\}|\\])`, 'g'),
+            
+            // 3. Match multiline YAML: "path:\n  reference" (with indentation)
+            //    Example: path:\n    patch.yaml
+            new RegExp(`path:\\s*\\n([ \\t]+)${wordBoundaryStart}${escapedRef}${wordBoundaryEnd}(?=\\s|$|#|\\n|,|\\}|\\])`, 'g'),
+            
+            // 4. Match flow style array: "[reference]" or "[reference1, reference2]"
+            //    Example: [patch.yaml] or [patch1.yaml, patch2.yaml]
+            new RegExp(`\\[\\s*${wordBoundaryStart}${escapedRef}${wordBoundaryEnd}\\s*[,\\]]`, 'g'),
+            
+            // 5. Match flow style object: "{path: reference}" or "{path: reference, ...}"
+            //    Example: {path: patch.yaml} or {path: patch.yaml, target: {...}}
+            new RegExp(`\\{[^}]*path:\\s*${wordBoundaryStart}${escapedRef}${wordBoundaryEnd}(?=\\s|,|\\}|$)`, 'g'),
+            
+            // 6. Match as standalone value after colon (but not if it's part of another key)
+            //    Example: resources: [patch.yaml] or resources:\n  - patch.yaml
+            //    This is more specific - only match if it's a simple value or in a list context
+            new RegExp(`(?:^|\\n)\\s*\\w+\\s*:\\s*${wordBoundaryStart}${escapedRef}${wordBoundaryEnd}(?=\\s|$|#|\\n|,|\\}|\\])`, 'gm')
         ];
 
         for (const pattern of patterns) {

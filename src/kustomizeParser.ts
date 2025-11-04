@@ -53,6 +53,9 @@ interface CachedFileStat {
     isFile: boolean;
 }
 
+// Constant for non-existent file modification time
+const NON_EXISTENT_FILE_MTIME = 0;
+
 export class KustomizeParser {
     private referenceMap: KustomizeReferenceMap = {
         fileReferences: new Map<string, string[]>(),
@@ -421,7 +424,7 @@ export class KustomizeParser {
         } catch (error) {
             // File doesn't exist or error accessing it
             if (this.cachingEnabled) {
-                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: 0 });
+                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
                 this.fileStatCache.delete(normalizedPath);
             }
             return null;
@@ -446,8 +449,8 @@ export class KustomizeParser {
         // Check cache first
         const cached = this.fileExistsCache.get(normalizedPath);
         if (cached) {
-            // If cached as non-existent with mtime 0, return immediately (no need to check)
-            if (!cached.exists && cached.mtime === 0) {
+            // If cached as non-existent with NON_EXISTENT_FILE_MTIME, return immediately (no need to check)
+            if (!cached.exists && cached.mtime === NON_EXISTENT_FILE_MTIME) {
                 return false;
             }
             
@@ -460,7 +463,7 @@ export class KustomizeParser {
                 // Cache invalid - file changed, will update below
             } catch {
                 // File doesn't exist anymore
-                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: 0 });
+                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
                 this.fileStatCache.delete(normalizedPath);
                 return false;
             }
@@ -478,7 +481,7 @@ export class KustomizeParser {
             });
             return true;
         } catch {
-            this.fileExistsCache.set(normalizedPath, { exists: false, mtime: 0 });
+            this.fileExistsCache.set(normalizedPath, { exists: false, mtime: NON_EXISTENT_FILE_MTIME });
             this.fileStatCache.delete(normalizedPath);
             return false;
         }
@@ -497,7 +500,7 @@ export class KustomizeParser {
      */
     private getFileMtime(filePath: string): number {
         const stat = this.getCachedStat(filePath);
-        return stat?.mtime ?? 0;
+        return stat?.mtime ?? NON_EXISTENT_FILE_MTIME;
     }
     
     /**

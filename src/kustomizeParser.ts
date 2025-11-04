@@ -557,6 +557,7 @@ export class KustomizeParser {
                         
                         let resolvedPath: string | undefined;
                         try {
+                            // Determine the reference path
                             if (typeof refPath === 'string') {
                                 resolvedPath = this.resolveReference(filePath, refPath);
                             } else if (typeof refPath === 'object' && refPath.path) {
@@ -564,6 +565,11 @@ export class KustomizeParser {
                                 resolvedPath = this.resolveReference(filePath, refPath.path);
                             } else {
                                 // Skip objects without path property (e.g., inline patches with only 'patch' field)
+                                continue;
+                            }
+
+                            // Ensure resolvedPath is defined before using it
+                            if (!resolvedPath) {
                                 continue;
                             }
 

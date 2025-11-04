@@ -8,9 +8,15 @@ export class KustomizeFileWatcher {
     // For debouncing
     private scanTimeout: NodeJS.Timeout | undefined = undefined;
     private readonly debounceDelay = 500; // ms
+    
+    // Mass change detection (e.g., git branch switch)
+    private recentChangeEvents: string[] = [];
+    private readonly changeRateWindow = 1000; // 1 second window
+    private readonly massChangeThreshold = 50; // If more than 50 files change in 1 second
+    private cleanupInterval: NodeJS.Timeout | undefined = undefined;
 
-    constructor(workspaceRoot: string) {
-        this.parser = new KustomizeParser(workspaceRoot);
+    constructor(workspaceRoot: string, enableFileSystemCache: boolean = true) {
+        this.parser = new KustomizeParser(workspaceRoot, enableFileSystemCache);
     }
 
     public async initialize(): Promise<void> {
@@ -42,16 +48,36 @@ export class KustomizeFileWatcher {
         this.allYamlFileWatcher.onDidCreate((uri) => this.handleYamlFileChange(uri));
         this.allYamlFileWatcher.onDidChange((uri) => this.handleYamlFileChange(uri));
         this.allYamlFileWatcher.onDidDelete((uri) => this.handleYamlFileDelete(uri));
+        
+        // Start cleanup interval for mass change detection
+        this.cleanupInterval = setInterval(() => {
+            this.recentChangeEvents = [];
+        }, this.changeRateWindow);
     }
 
     private handleKustomizationFileChange(uri: vscode.Uri): void {
-        // Use incremental update for kustomization files
-        this.debouncedIncrementalUpdate(uri.fsPath);
+        this.handleFileChange(uri.fsPath);
     }
 
     private handleKustomizationFileDelete(uri: vscode.Uri): void {
-        // Handle deletion - will be handled in incremental update
-        this.debouncedIncrementalUpdate(uri.fsPath);
+        this.handleFileChange(uri.fsPath);
+    }
+    
+    private handleFileChange(filePath: string): void {
+        // Track change event for mass change detection
+        this.recentChangeEvents.push(filePath);
+        
+        // Check if we're experiencing a mass change (e.g., git branch switch)
+        if (this.recentChangeEvents.length > this.massChangeThreshold) {
+            // Mass change detected - clear all caches and do full rebuild
+            this.parser.clearCaches();
+            this.recentChangeEvents = [];
+            this.debouncedScanWorkspace(); // Full rebuild instead of incremental
+            return;
+        }
+        
+        // Normal incremental update
+        this.debouncedIncrementalUpdate(filePath);
     }
 
     private handleYamlFileChange(uri: vscode.Uri): void {
@@ -63,7 +89,7 @@ export class KustomizeFileWatcher {
 
         // Check if this could be a Flux Kustomization CR
         if (this.parser.isFluxKustomizationFile(uri.fsPath)) {
-            this.debouncedIncrementalUpdate(uri.fsPath);
+            this.handleFileChange(uri.fsPath);
         }
     }
 
@@ -73,11 +99,11 @@ export class KustomizeFileWatcher {
         // but updateFileReferencesIncremental will handle it gracefully
         const fileName = uri.fsPath.toLowerCase();
         if (fileName.endsWith('kustomization.yaml') || fileName.endsWith('kustomization.yml')) {
-            this.debouncedIncrementalUpdate(uri.fsPath);
+            this.handleFileChange(uri.fsPath);
         } else {
             // For other YAML files, check cache or just update (will be handled gracefully)
             // The incremental update will check if file exists and handle deletion properly
-            this.debouncedIncrementalUpdate(uri.fsPath);
+            this.handleFileChange(uri.fsPath);
         }
     }
 
@@ -124,6 +150,9 @@ export class KustomizeFileWatcher {
         }
         if (this.scanTimeout) {
             clearTimeout(this.scanTimeout);
+        }
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
         }
     }
 }

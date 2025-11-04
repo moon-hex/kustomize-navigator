@@ -273,21 +273,21 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 pos.translate(0, reference.length)
             );
 
-            // Check if the target exists
-            let fileExists = fs.existsSync(resolvedPath);
+            // Check if the target exists (using cached method)
+            let fileExists = this.parser.cachedFileExists(resolvedPath);
             let targetPath = resolvedPath;
             let targetIsKustomization = false;
 
             // For Flux Kustomization paths, we expect them to point to directories containing kustomization files
-            if (fileExists && fs.statSync(resolvedPath).isDirectory()) {
+            if (fileExists && this.parser.cachedIsDirectory(resolvedPath)) {
                 const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
                 const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
 
-                if (fs.existsSync(kustomizationPath)) {
+                if (this.parser.cachedFileExists(kustomizationPath)) {
                     targetPath = kustomizationPath;
                     targetIsKustomization = true;
                     fileExists = true;
-                } else if (fs.existsSync(kustomizationPathYml)) {
+                } else if (this.parser.cachedFileExists(kustomizationPathYml)) {
                     targetPath = kustomizationPathYml;
                     targetIsKustomization = true;
                     fileExists = true;
@@ -319,7 +319,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             // Add diagnostic if file doesn't exist
             if (!fileExists) {
                 let errorMessage: string;
-                if (fs.existsSync(path.dirname(targetPath))) {
+                if (this.parser.cachedFileExists(path.dirname(targetPath))) {
                     errorMessage = `Directory exists but no kustomization.yaml file inside: ${reference}`;
                 } else {
                     errorMessage = `Flux reference not found: ${reference} (resolved to: ${targetPath})`;
@@ -369,20 +369,20 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 pos.translate(0, reference.length)
             );
 
-            // Check if the file exists
-            let fileExists = fs.existsSync(resolvedPath);
+            // Check if the file exists (using cached method)
+            let fileExists = this.parser.cachedFileExists(resolvedPath);
             let targetIsKustomization = false;
 
             // If it's a directory, look for kustomization.yaml inside
-            if (fileExists && fs.statSync(resolvedPath).isDirectory()) {
+            if (fileExists && this.parser.cachedIsDirectory(resolvedPath)) {
                 const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
                 const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
 
-                if (fs.existsSync(kustomizationPath)) {
+                if (this.parser.cachedFileExists(kustomizationPath)) {
                     resolvedPath = kustomizationPath;
                     targetIsKustomization = true;
                     fileExists = true;
-                } else if (fs.existsSync(kustomizationPathYml)) {
+                } else if (this.parser.cachedFileExists(kustomizationPathYml)) {
                     resolvedPath = kustomizationPathYml;
                     targetIsKustomization = true;
                     fileExists = true;
@@ -408,7 +408,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             // Add diagnostic if file doesn't exist
             if (!fileExists) {
                 let errorMessage: string;
-                if (fs.existsSync(path.dirname(resolvedPath))) {
+                if (this.parser.cachedFileExists(path.dirname(resolvedPath))) {
                     errorMessage = `Directory exists but no kustomization.yaml file inside: ${reference}`;
                 } else {
                     errorMessage = `Referenced file not found: ${reference} (resolved to: ${resolvedPath})`;

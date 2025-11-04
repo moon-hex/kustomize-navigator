@@ -39,6 +39,13 @@ export interface KustomizeReferenceMap {
     fileBackReferences: Map<string, Array<{path: string, type: 'flux' | 'k8s'}>>;
 }
 
+// Interface for file metadata tracking
+interface FileMetadata {
+    mtime: number; // File modification time
+    references: string[]; // Cached references
+    isFluxKustomization: boolean;
+}
+
 export class KustomizeParser {
     private referenceMap: KustomizeReferenceMap = {
         fileReferences: new Map<string, string[]>(),
@@ -47,6 +54,12 @@ export class KustomizeParser {
 
     // Cache for Git root detection
     private gitRootCache = new Map<string, string>();
+    
+    // Cache for file metadata to detect changes
+    private fileMetadataCache = new Map<string, FileMetadata>();
+    
+    // Track which files reference which files (for dependency updates)
+    private fileDependencyMap = new Map<string, Set<string>>();
 
     constructor(private workspaceRoot: string) { }
 
@@ -176,7 +189,7 @@ export class KustomizeParser {
 
             return results;
         } catch (error) {
-            console.log(`Error parsing file ${filePath}:`, error);
+            console.error(`Error parsing file ${filePath}:`, error);
             return [];
         }
     }
@@ -204,7 +217,7 @@ export class KustomizeParser {
 
             return allReferences;
         } catch (error) {
-            console.log(`Error getting Flux references for ${filePath}:`, error);
+            console.error(`Error getting Flux references for ${filePath}:`, error);
             return [];
         }
     }
@@ -242,13 +255,20 @@ export class KustomizeParser {
         // Handle patches - also resolve relative to Git root
         const processPatchReferences = (patches: any[]) => {
             patches.forEach(patch => {
+                // Skip null/undefined array elements
+                if (patch === null || patch === undefined) {
+                    return;
+                }
+                
                 let patchPath: string | undefined;
 
                 if (typeof patch === 'string') {
                     patchPath = patch;
-                } else if (patch && typeof patch === 'object' && patch.path) {
+                } else if (typeof patch === 'object' && patch.path) {
+                    // Object format with path: patches: [{path: patch.yaml, target: {...}}]
                     patchPath = patch.path;
                 }
+                // Skip objects without path property (e.g., inline patches with only 'patch' field)
 
                 if (patchPath) {
                     const resolvedPath = this.resolveReference(filePath, patchPath);
@@ -330,104 +350,275 @@ export class KustomizeParser {
     }
 
     /**
-     * Enhanced build reference map with Flux support
+     * Get file modification time
+     */
+    private getFileMtime(filePath: string): number {
+        try {
+            if (fs.existsSync(filePath)) {
+                return fs.statSync(filePath).mtimeMs;
+            }
+        } catch (error) {
+            console.warn(`Failed to get mtime for ${filePath}:`, error);
+        }
+        return 0;
+    }
+
+    /**
+     * Check if a file has changed since last check
+     */
+    private hasFileChanged(filePath: string): boolean {
+        const cached = this.fileMetadataCache.get(filePath);
+        if (!cached) {
+            return true; // File not in cache, consider it changed
+        }
+
+        const currentMtime = this.getFileMtime(filePath);
+        return currentMtime !== cached.mtime;
+    }
+
+    /**
+     * Process a single file and update its references
+     */
+    private processFileReferences(filePath: string): string[] {
+        const kustomizations = this.parseKustomizationFile(filePath);
+        if (kustomizations.length === 0) {
+            return [];
+        }
+
+        const isFluxKustomization = this.isFluxKustomizationFile(filePath);
+        let references: string[] = [];
+
+        if (isFluxKustomization) {
+            // For Flux CRs, get the resolved references using separate method
+            references = this.getFluxResolvedReferences(filePath);
+        } else {
+            // For standard kustomizations, process all documents
+            for (const kustomization of kustomizations) {
+                const addReferences = (paths: (string | KustomizationPatch)[]) => {
+                    for (const refPath of paths) {
+                        // Skip null/undefined array elements
+                        if (refPath === null || refPath === undefined) {
+                            continue;
+                        }
+                        
+                        try {
+                            let resolvedPath;
+                            if (typeof refPath === 'string') {
+                                resolvedPath = this.resolveReference(filePath, refPath);
+                            } else if (typeof refPath === 'object' && refPath.path) {
+                                // Object format with path: patches: [{path: patch.yaml, target: {...}}]
+                                resolvedPath = this.resolveReference(filePath, refPath.path);
+                            } else {
+                                // Skip objects without path property (e.g., inline patches with only 'patch' field)
+                                continue;
+                            }
+
+                            // For both Flux and K8s, if the path is a directory, look for kustomization.yaml
+                            if (this.isDirectory(resolvedPath)) {
+                                const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
+                                const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
+
+                                if (this.fileExists(kustomizationPath)) {
+                                    resolvedPath = kustomizationPath;
+                                } else if (this.fileExists(kustomizationPathYml)) {
+                                    resolvedPath = kustomizationPathYml;
+                                }
+                            }
+
+                            // Only add the reference if it exists
+                            if (this.fileExists(resolvedPath)) {
+                                references.push(resolvedPath);
+                            }
+                        } catch (error) {
+                            console.warn(`Failed to resolve reference from ${filePath}:`, error);
+                        }
+                    }
+                };
+
+                // Add all reference types
+                addReferences(kustomization.resources);
+                addReferences(kustomization.bases);
+                addReferences(kustomization.components);
+                addReferences(kustomization.patches);
+                addReferences(kustomization.patchesStrategicMerge);
+                addReferences(kustomization.configurations);
+                addReferences(kustomization.crds);
+
+                // Handle JSON 6902 patches which have a path field
+                kustomization.patchesJson6902.forEach(patch => {
+                    // Skip null/undefined array elements
+                    if (patch === null || patch === undefined) {
+                        return;
+                    }
+                    if (typeof patch === 'object' && patch.path) {
+                        addReferences([patch.path]);
+                    }
+                });
+            }
+        }
+
+        // Update metadata cache
+        this.fileMetadataCache.set(filePath, {
+            mtime: this.getFileMtime(filePath),
+            references: [...references],
+            isFluxKustomization
+        });
+
+        return references;
+    }
+
+    /**
+     * Update references for a single file and update back-references
+     */
+    private updateFileReferences(filePath: string): void {
+        // Remove old back-references for this file
+        const oldReferences = this.referenceMap.fileReferences.get(filePath) || [];
+        oldReferences.forEach(oldRef => {
+            const normalizedOldRef = path.normalize(oldRef);
+            const backRefs = this.referenceMap.fileBackReferences.get(normalizedOldRef);
+            if (backRefs) {
+                const index = backRefs.findIndex(ref => ref.path === filePath);
+                if (index !== -1) {
+                    backRefs.splice(index, 1);
+                    // Remove empty back-reference entries
+                    if (backRefs.length === 0) {
+                        this.referenceMap.fileBackReferences.delete(normalizedOldRef);
+                    }
+                }
+            }
+        });
+
+        // Get new references
+        const newReferences = this.processFileReferences(filePath);
+        
+        // Store new references
+        this.referenceMap.fileReferences.set(filePath, newReferences);
+
+        // Update dependency map - track which files this file references
+        const referencedFiles = new Set<string>();
+        newReferences.forEach(ref => {
+            const normalizedRef = path.normalize(ref);
+            referencedFiles.add(normalizedRef);
+            
+            // Update back-references
+            if (!this.referenceMap.fileBackReferences.has(normalizedRef)) {
+                this.referenceMap.fileBackReferences.set(normalizedRef, []);
+            }
+            
+            const backRefs = this.referenceMap.fileBackReferences.get(normalizedRef)!;
+            const refType = this.fileMetadataCache.get(filePath)?.isFluxKustomization ? 'flux' : 'k8s';
+            if (!backRefs.some(ref => ref.path === filePath)) {
+                backRefs.push({ path: filePath, type: refType });
+            }
+        });
+
+        // Update dependency map
+        this.fileDependencyMap.set(filePath, referencedFiles);
+    }
+
+    /**
+     * Update references for a file and any files that depend on it (cascade update)
+     */
+    public async updateFileReferencesIncremental(filePath: string): Promise<void> {
+        const normalizedPath = path.normalize(filePath);
+        
+        // Check if file still exists (might have been deleted)
+        if (!fs.existsSync(normalizedPath)) {
+            // File was deleted - remove it from cache and update back-refs
+            this.removeFileReferences(normalizedPath);
+            return;
+        }
+
+        // Check if file has changed
+        if (!this.hasFileChanged(normalizedPath)) {
+            return;
+        }
+        
+        // Update this file's references
+        this.updateFileReferences(normalizedPath);
+
+        // Find files that reference this file and update them too (cascade)
+        const backRefs = this.referenceMap.fileBackReferences.get(normalizedPath) || [];
+        const filesToUpdate = new Set<string>();
+        
+        backRefs.forEach(backRef => {
+            filesToUpdate.add(backRef.path);
+        });
+
+        // Update dependent files
+        for (const dependentFile of filesToUpdate) {
+            if (fs.existsSync(dependentFile)) {
+                this.updateFileReferences(dependentFile);
+            }
+        }
+    }
+
+    /**
+     * Remove a file from the reference map (when file is deleted)
+     */
+    private removeFileReferences(filePath: string): void {
+        const normalizedPath = path.normalize(filePath);
+        
+        // Remove from file references
+        const oldReferences = this.referenceMap.fileReferences.get(normalizedPath) || [];
+        this.referenceMap.fileReferences.delete(normalizedPath);
+
+        // Remove back-references: this file was referencing other files, so remove those back-refs
+        oldReferences.forEach(oldRef => {
+            const normalizedOldRef = path.normalize(oldRef);
+            const backRefs = this.referenceMap.fileBackReferences.get(normalizedOldRef);
+            if (backRefs) {
+                const index = backRefs.findIndex(ref => ref.path === normalizedPath);
+                if (index !== -1) {
+                    backRefs.splice(index, 1);
+                    if (backRefs.length === 0) {
+                        this.referenceMap.fileBackReferences.delete(normalizedOldRef);
+                    }
+                }
+            }
+        });
+
+        // Remove back-references pointing TO this file (files that reference the deleted file)
+        const backRefsToThisFile = this.referenceMap.fileBackReferences.get(normalizedPath);
+        if (backRefsToThisFile) {
+            // Files that reference the deleted file need to be updated
+            backRefsToThisFile.forEach(backRef => {
+                // Remove the reference from those files (they'll be updated on next change)
+                const refs = this.referenceMap.fileReferences.get(backRef.path);
+                if (refs) {
+                    const index = refs.indexOf(normalizedPath);
+                    if (index !== -1) {
+                        refs.splice(index, 1);
+                    }
+                }
+            });
+            this.referenceMap.fileBackReferences.delete(normalizedPath);
+        }
+
+        // Remove from caches
+        this.fileMetadataCache.delete(normalizedPath);
+        this.fileDependencyMap.delete(normalizedPath);
+    }
+
+    /**
+     * Enhanced build reference map with Flux support (full rebuild)
      */
     public async buildReferenceMap(): Promise<KustomizeReferenceMap> {
+        console.log('Building full reference map...');
         this.referenceMap = {
             fileReferences: new Map<string, string[]>(),
             fileBackReferences: new Map<string, Array<{path: string, type: 'flux' | 'k8s'}>>()
         };
+        this.fileMetadataCache.clear();
+        this.fileDependencyMap.clear();
 
         const kustomizationFiles = await this.findKustomizationFiles();
 
         for (const filePath of kustomizationFiles) {
-            const kustomizations = this.parseKustomizationFile(filePath);
-            if (kustomizations.length === 0) { continue; }
-
-            const isFluxKustomization = this.isFluxKustomizationFile(filePath);
-            let references: string[] = [];
-
-            if (isFluxKustomization) {
-                // For Flux CRs, get the resolved references using separate method
-                references = this.getFluxResolvedReferences(filePath);
-            } else {
-                // For standard kustomizations, process all documents
-                for (const kustomization of kustomizations) {
-                    const addReferences = (paths: (string | KustomizationPatch)[]) => {
-                        for (const refPath of paths) {
-                            try {
-                                let resolvedPath;
-                                if (typeof refPath === 'string') {
-                                    resolvedPath = this.resolveReference(filePath, refPath);
-                                } else if (refPath && typeof refPath === 'object' && refPath.path) {
-                                    resolvedPath = this.resolveReference(filePath, refPath.path);
-                                } else {
-                                    continue;
-                                }
-
-                                // For both Flux and K8s, if the path is a directory, look for kustomization.yaml
-                                if (this.isDirectory(resolvedPath)) {
-                                    const kustomizationPath = path.join(resolvedPath, 'kustomization.yaml');
-                                    const kustomizationPathYml = path.join(resolvedPath, 'kustomization.yml');
-
-                                    if (this.fileExists(kustomizationPath)) {
-                                        resolvedPath = kustomizationPath;
-                                    } else if (this.fileExists(kustomizationPathYml)) {
-                                        resolvedPath = kustomizationPathYml;
-                                    }
-                                }
-
-                                // Only add the reference if it exists
-                                if (this.fileExists(resolvedPath)) {
-                                    references.push(resolvedPath);
-                                    console.log(`Added reference: ${filePath} -> ${resolvedPath}`);
-                                }
-                            } catch (error) {
-                                console.warn(`Failed to resolve reference from ${filePath}:`, error);
-                            }
-                        }
-                    };
-
-                    // Add all reference types
-                    addReferences(kustomization.resources);
-                    addReferences(kustomization.bases);
-                    addReferences(kustomization.components);
-                    addReferences(kustomization.patches);
-                    addReferences(kustomization.patchesStrategicMerge);
-                    addReferences(kustomization.configurations);
-                    addReferences(kustomization.crds);
-
-                    // Handle JSON 6902 patches which have a path field
-                    kustomization.patchesJson6902.forEach(patch => {
-                        if (patch.path) {
-                            addReferences([patch.path]);
-                        }
-                    });
-                }
-            }
-
-            // Store references and update back-references
-            this.referenceMap.fileReferences.set(filePath, references);
-
-            // Update back-references for each resolved path
-            references.forEach(resolvedPath => {
-                // Normalize the path to ensure consistent comparison
-                const normalizedPath = path.normalize(resolvedPath);
-                
-                if (!this.referenceMap.fileBackReferences.has(normalizedPath)) {
-                    this.referenceMap.fileBackReferences.set(normalizedPath, []);
-                }
-                
-                // Only add the back reference if it's not already there
-                const backRefs = this.referenceMap.fileBackReferences.get(normalizedPath)!;
-                const refType = isFluxKustomization ? 'flux' : 'k8s';
-                if (!backRefs.some(ref => ref.path === filePath)) {
-                    backRefs.push({ path: filePath, type: refType });
-                    console.log(`Added back reference: ${normalizedPath} <- ${filePath} (${refType})`);
-                }
-            });
+            this.updateFileReferences(filePath);
         }
 
+        console.log(`Reference map built: ${kustomizationFiles.length} files processed`);
         return this.referenceMap;
     }
 

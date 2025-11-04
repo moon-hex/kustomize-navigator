@@ -6,6 +6,19 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.0] - 2025-11-04
+
+### Performance Improvements
+- **Incremental Reference Map Updates**: Major performance enhancement - only updates changed files instead of rebuilding entire reference map
+- File change detection using modification time tracking
+- Cascading updates for dependent files when references change
+- Proper handling of file deletions with cleanup
+
+### Changed
+- Reference map now uses incremental updates by default (10-100x faster for single file changes)
+- Full rebuild still available via `buildReferenceMap()` for initial load
+- File watcher now uses incremental updates instead of full workspace scan
+
 ## [0.8.4] - 2025-11-04
 
 ### Fixed

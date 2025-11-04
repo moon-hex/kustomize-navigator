@@ -46,6 +46,13 @@ interface FileMetadata {
     isFluxKustomization: boolean;
 }
 
+// Interface for cached file stats
+interface CachedFileStat {
+    mtime: number;
+    isDirectory: boolean;
+    isFile: boolean;
+}
+
 export class KustomizeParser {
     private referenceMap: KustomizeReferenceMap = {
         fileReferences: new Map<string, string[]>(),
@@ -60,8 +67,19 @@ export class KustomizeParser {
     
     // Track which files reference which files (for dependency updates)
     private fileDependencyMap = new Map<string, Set<string>>();
+    
+    // Cache for file existence checks
+    private fileExistsCache = new Map<string, { exists: boolean; mtime: number }>();
+    
+    // Cache for file stats
+    private fileStatCache = new Map<string, CachedFileStat>();
+    
+    // Flag to enable/disable caching
+    private cachingEnabled: boolean;
 
-    constructor(private workspaceRoot: string) { }
+    constructor(private workspaceRoot: string, cachingEnabled: boolean = true) {
+        this.cachingEnabled = cachingEnabled;
+    }
 
     /**
      * Find Git repository root for a given file path
@@ -350,17 +368,145 @@ export class KustomizeParser {
     }
 
     /**
-     * Get file modification time
+     * Get cached file stat or fetch from filesystem
+     */
+    private getCachedStat(filePath: string): CachedFileStat | null {
+        const normalizedPath = path.normalize(filePath);
+        
+        // If caching is disabled, fetch directly from filesystem
+        if (!this.cachingEnabled) {
+            try {
+                const stat = fs.statSync(normalizedPath);
+                return {
+                    mtime: stat.mtimeMs,
+                    isDirectory: stat.isDirectory(),
+                    isFile: stat.isFile()
+                };
+            } catch {
+                return null;
+            }
+        }
+        
+        try {
+            // Check cache first
+            const cached = this.fileStatCache.get(normalizedPath);
+            if (cached) {
+                // Verify cache is still valid by checking current mtime
+                try {
+                    const currentStat = fs.statSync(normalizedPath);
+                    if (currentStat.mtimeMs === cached.mtime) {
+                        return cached;
+                    }
+                    // Cache invalid - file changed, update it
+                } catch {
+                    // File might have been deleted, remove from cache
+                    this.fileStatCache.delete(normalizedPath);
+                    this.fileExistsCache.delete(normalizedPath);
+                    return null;
+                }
+            }
+            
+            // Cache miss or invalid - fetch from filesystem
+            const stat = fs.statSync(normalizedPath);
+            const cachedStat: CachedFileStat = {
+                mtime: stat.mtimeMs,
+                isDirectory: stat.isDirectory(),
+                isFile: stat.isFile()
+            };
+            
+            this.fileStatCache.set(normalizedPath, cachedStat);
+            this.fileExistsCache.set(normalizedPath, { exists: true, mtime: stat.mtimeMs });
+            
+            return cachedStat;
+        } catch (error) {
+            // File doesn't exist or error accessing it
+            if (this.cachingEnabled) {
+                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: 0 });
+                this.fileStatCache.delete(normalizedPath);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Check if file exists (cached if enabled)
+     */
+    public cachedFileExists(filePath: string): boolean {
+        const normalizedPath = path.normalize(filePath);
+        
+        // If caching is disabled, check directly
+        if (!this.cachingEnabled) {
+            try {
+                return fs.existsSync(normalizedPath);
+            } catch {
+                return false;
+            }
+        }
+        
+        // Check cache first
+        const cached = this.fileExistsCache.get(normalizedPath);
+        if (cached) {
+            // If cached as non-existent with mtime 0, return immediately (no need to check)
+            if (!cached.exists && cached.mtime === 0) {
+                return false;
+            }
+            
+            // Verify cache is still valid by checking current mtime
+            try {
+                const currentStat = fs.statSync(normalizedPath);
+                if (currentStat.mtimeMs === cached.mtime) {
+                    return cached.exists;
+                }
+                // Cache invalid - file changed, will update below
+            } catch {
+                // File doesn't exist anymore
+                this.fileExistsCache.set(normalizedPath, { exists: false, mtime: 0 });
+                this.fileStatCache.delete(normalizedPath);
+                return false;
+            }
+        }
+        
+        // Cache miss or invalid - check filesystem and cache result
+        try {
+            const stat = fs.statSync(normalizedPath);
+            this.fileExistsCache.set(normalizedPath, { exists: true, mtime: stat.mtimeMs });
+            // Also cache the stat
+            this.fileStatCache.set(normalizedPath, {
+                mtime: stat.mtimeMs,
+                isDirectory: stat.isDirectory(),
+                isFile: stat.isFile()
+            });
+            return true;
+        } catch {
+            this.fileExistsCache.set(normalizedPath, { exists: false, mtime: 0 });
+            this.fileStatCache.delete(normalizedPath);
+            return false;
+        }
+    }
+
+    /**
+     * Check if path is a directory (cached)
+     */
+    public cachedIsDirectory(filePath: string): boolean {
+        const stat = this.getCachedStat(filePath);
+        return stat?.isDirectory ?? false;
+    }
+
+    /**
+     * Get file modification time (cached)
      */
     private getFileMtime(filePath: string): number {
-        try {
-            if (fs.existsSync(filePath)) {
-                return fs.statSync(filePath).mtimeMs;
-            }
-        } catch (error) {
-            console.warn(`Failed to get mtime for ${filePath}:`, error);
-        }
-        return 0;
+        const stat = this.getCachedStat(filePath);
+        return stat?.mtime ?? 0;
+    }
+    
+    /**
+     * Invalidate cache entries for a file (called when file changes)
+     */
+    private invalidateFileCache(filePath: string): void {
+        const normalizedPath = path.normalize(filePath);
+        this.fileExistsCache.delete(normalizedPath);
+        this.fileStatCache.delete(normalizedPath);
     }
 
     /**
@@ -523,7 +669,7 @@ export class KustomizeParser {
         const normalizedPath = path.normalize(filePath);
         
         // Check if file still exists (might have been deleted)
-        if (!fs.existsSync(normalizedPath)) {
+        if (!this.cachedFileExists(normalizedPath)) {
             // File was deleted - remove it from cache and update back-refs
             this.removeFileReferences(normalizedPath);
             return;
@@ -533,6 +679,9 @@ export class KustomizeParser {
         if (!this.hasFileChanged(normalizedPath)) {
             return;
         }
+        
+        // Invalidate cache for this file since it changed
+        this.invalidateFileCache(normalizedPath);
         
         // Update this file's references
         this.updateFileReferences(normalizedPath);
@@ -547,7 +696,7 @@ export class KustomizeParser {
 
         // Update dependent files
         for (const dependentFile of filesToUpdate) {
-            if (fs.existsSync(dependentFile)) {
+            if (this.cachedFileExists(dependentFile)) {
                 this.updateFileReferences(dependentFile);
             }
         }
@@ -598,6 +747,7 @@ export class KustomizeParser {
         // Remove from caches
         this.fileMetadataCache.delete(normalizedPath);
         this.fileDependencyMap.delete(normalizedPath);
+        this.invalidateFileCache(normalizedPath);
     }
 
     /**
@@ -639,24 +789,31 @@ export class KustomizeParser {
     }
 
     /**
-     * Check if a path is a directory
+     * Check if a path is a directory (cached)
      */
     public isDirectory(filePath: string): boolean {
-        try {
-            return fs.existsSync(filePath) && fs.statSync(filePath).isDirectory();
-        } catch (error) {
-            return false;
-        }
+        return this.cachedIsDirectory(filePath);
     }
 
     /**
-     * Check if a file exists
+     * Check if a file exists (cached)
      */
     public fileExists(filePath: string): boolean {
-        try {
-            return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
-        } catch (error) {
+        const normalizedPath = path.normalize(filePath);
+        if (!this.cachedFileExists(normalizedPath)) {
             return false;
         }
+        const stat = this.getCachedStat(normalizedPath);
+        return stat?.isFile ?? false;
+    }
+    
+    /**
+     * Clear all caches (useful for testing or when workspace changes significantly)
+     */
+    public clearCaches(): void {
+        this.fileExistsCache.clear();
+        this.fileStatCache.clear();
+        this.fileMetadataCache.clear();
+        this.gitRootCache.clear();
     }
 }

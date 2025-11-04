@@ -9,8 +9,8 @@ export class KustomizeFileWatcher {
     private scanTimeout: NodeJS.Timeout | undefined = undefined;
     private readonly debounceDelay = 500; // ms
 
-    constructor(workspaceRoot: string) {
-        this.parser = new KustomizeParser(workspaceRoot);
+    constructor(workspaceRoot: string, enableFileSystemCache: boolean = true) {
+        this.parser = new KustomizeParser(workspaceRoot, enableFileSystemCache);
     }
 
     public async initialize(): Promise<void> {

@@ -21,8 +21,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
     const workspaceRoot = workspaceFolders[0].uri.fsPath;
     
+    // Read performance configuration
+    const performanceConfig = vscode.workspace.getConfiguration('kustomizeNavigator.performance');
+    const enableFileSystemCache = performanceConfig.get<boolean>('enableFileSystemCache', true);
+    
     // Check for kustomization files before initializing watcher
-    const parser = new KustomizeParser(workspaceRoot);
+    const parser = new KustomizeParser(workspaceRoot, enableFileSystemCache);
     const kustomizationFiles = await parser.findKustomizationFiles();
 
     if (kustomizationFiles.length === 0) {
@@ -33,7 +37,7 @@ export async function activate(context: vscode.ExtensionContext) {
     console.log(`Kustomize Navigator extension is now active (found ${kustomizationFiles.length} kustomization files)`);
     
     // Initialize the file watcher only if we found kustomization files
-    const fileWatcher = new KustomizeFileWatcher(workspaceRoot);
+    const fileWatcher = new KustomizeFileWatcher(workspaceRoot, enableFileSystemCache);
     await fileWatcher.initialize();
     
     // Register link provider

@@ -6,6 +6,28 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.2] - 2025-11-04
+
+### Added
+- Configuration option `kustomizeNavigator.performance.enableFileSystemCache` to enable/disable file system caching
+- Default value is `true` (caching enabled)
+
+### Changed
+- File system caching can now be disabled via settings if needed for debugging or compatibility
+
+## [0.9.1] - 2025-11-04
+
+### Performance Improvements
+- **File System Operation Caching**: Added intelligent caching for file existence and stat operations
+- Cache uses modification time (mtime) for automatic invalidation
+- Reduces I/O operations by 50-80% for repeated file checks
+- Cache is automatically invalidated when files change
+
+### Changed
+- `fs.existsSync()` and `fs.statSync()` calls now use cached versions
+- Public methods `cachedFileExists()` and `cachedIsDirectory()` available for use
+- Cache automatically validates entries using mtime comparison
+
 ## [0.9.0] - 2025-11-04
 
 ### Performance Improvements

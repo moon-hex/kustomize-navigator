@@ -6,7 +6,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-## [0.8.2] - 2025-01-XX
+## [0.8.2] - 2025-11-04
 
 ### Added
 - Comprehensive support for all patch formats (string, object with path, inline patches)
@@ -16,7 +16,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Improved linking and highlighting for `patches` field (recommended format)
 - Maintained backward compatibility with deprecated `patchesStrategicMerge` and `patchesJson6902`
 
-## [0.8.1] - 2025-XX-XX
+## [0.8.1] - 2025-11-03
 
 ### Changed
 - Improved handling of references for all YAML files

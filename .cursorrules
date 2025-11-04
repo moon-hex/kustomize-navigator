@@ -1,0 +1,145 @@
+# Kustomize Navigator - AI Assistant Guidelines
+
+## Project Context
+
+This is a Visual Studio Code extension for navigating and managing Kustomize references in Kubernetes GitOps workflows. It supports both standard Kustomize and Flux CD configurations.
+
+## Technology Stack
+
+- **Language**: TypeScript (strict mode enabled)
+- **Target**: ES2022, Node16 modules
+- **Framework**: VS Code Extension API
+- **Key Dependencies**: js-yaml, glob, child_process
+
+## Code Standards
+
+### TypeScript
+- Use strict mode (enforced in tsconfig.json)
+- Prefer explicit types over `any`
+- Use interfaces for object shapes
+- Follow ESLint rules: curly braces required, strict equality (===), semicolons
+
+### VS Code Extension Patterns
+- All providers implement VS Code interfaces (DocumentLinkProvider, HoverProvider, etc.)
+- Use `vscode.TextDocument`, `vscode.Uri`, `vscode.Range` for VS Code APIs
+- Register providers in `extension.ts` and add to `context.subscriptions`
+- Use `console.log` for debugging (visible in VS Code Developer Console)
+
+### File Organization
+- `src/` - Main source code
+- `src/kustomizeParser.ts` - Core parsing logic for Kustomization files
+- `src/linkProvider.ts` - Clickable navigation links
+- `src/hoverProvider.ts` - Hover information
+- `src/fluxDiagnostics.ts` - Diagnostic checks and warnings
+- `src/fileWatcher.ts` - File system watching and incremental updates
+- `src/yamlUtils.ts` - YAML parsing utilities
+
+## Architecture Patterns
+
+### Reference Map Pattern
+- `KustomizeParser` maintains a bidirectional reference map:
+  - `fileReferences`: Map<filePath, referencedFiles[]>
+  - `fileBackReferences`: Map<filePath, backRefs[]>
+- Incremental updates track file metadata (mtime) to detect changes
+- Cascading updates: when a file changes, dependent files are updated
+
+### Provider Pattern
+- Each VS Code feature is implemented as a provider class
+- Providers are stateless and operate on document content
+- Use `vscode.CancellationToken` for cancellation support
+
+### File Watching
+- Incremental updates preferred over full rebuilds
+- File watchers use debouncing (500ms default)
+- Handle file creation, change, and deletion events
+
+## Domain Knowledge
+
+### Kustomize Patch Formats
+1. **Recommended**: `patches` field (unified format)
+   - String: `patches: [patch.yaml]`
+   - Object: `patches: [{path: patch.yaml, target: {...}}]`
+   - Inline: `patches: [{patch: |-..., target: {...}}]`
+
+2. **Deprecated** (maintained for backward compatibility):
+   - `patchesStrategicMerge` - Deprecated in Kustomize v5.0.0 (Feb 2023)
+   - `patchesJson6902` - Deprecated in Kustomize v5.0.0 (Feb 2023)
+   - Show deprecation warnings but support linking/highlighting
+
+### Flux Kustomization CRs
+- Detected by `apiVersion: kustomize.toolkit.fluxcd.io/v1beta2`
+- Kind: `Kustomization`
+- References resolved relative to Git repository root (not workspace root)
+- Support `spec.resources`, `spec.patches`, `spec.components`, etc.
+
+### Standard Kustomizations
+- File named `kustomization.yaml` or `kustomization.yml`
+- Support `resources`, `bases`, `patches`, `components`, etc.
+- References resolved relative to file location
+
+## Important Conventions
+
+### Version Bumping
+When bumping versions, update ALL of these files:
+- `package.json` - version field
+- `CHANGELOG.md` - add new version entry with date
+- `README.md` - update "Recent Changes" section
+- `.vscode/launch.json` - version field (with note to keep in sync)
+
+### Documentation
+- Keep CHANGELOG.md updated with all changes
+- Update README.md "Recent Changes" for user-facing features
+- Use format: `YYYY-MM-DD` for dates (check with `Get-Date -Format 'yyyy-MM-dd'`)
+
+### Error Handling
+- Use try-catch blocks for file operations
+- Log warnings with `console.warn()`
+- Log errors with `console.error()`
+- Never throw uncaught errors (handle gracefully)
+
+### Performance Considerations
+- Use incremental updates instead of full rebuilds when possible
+- Cache file metadata (mtime) to detect changes
+- Debounce file watcher events
+- Normalize file paths for consistent comparisons
+- Check file existence before operations when possible
+
+### Array Safety
+- Always check for null/undefined when iterating arrays
+- Pattern: `if (item !== null && item !== undefined)`
+- Prefer strict equality (`!== null`) for explicit checks
+
+### YAML Parsing
+- Handle multiple YAML documents in single file
+- Use `YamlUtils.parseMultipleYamlDocuments()` for multi-doc files
+- Support both quoted and unquoted strings
+- Handle flow style arrays/objects: `[ref]`, `{path: ref}`
+- Account for multiline YAML with proper indentation
+
+### Regex Patterns
+- Use word boundaries to prevent partial matches
+- Support all YAML reference formats (quoted, unquoted, flow style)
+- Match context-aware patterns (e.g., within `spec:` block)
+- Filter out comments when matching
+
+## Testing Considerations
+- Test files in `src/test/` directory
+- Use fixtures in `src/test/fixtures/`
+- Test both valid and invalid kustomization files
+- Test Flux CRs and standard kustomizations separately
+
+## Git Integration
+- Use `git rev-parse --show-toplevel` to find Git root for Flux CRs
+- Cache Git root results per directory
+- Resolve Flux references relative to Git root, not workspace root
+
+## When Making Changes
+1. Consider backward compatibility (deprecated fields still work)
+2. Update version numbers in all required files
+3. Update documentation (CHANGELOG, README)
+4. Test with both standard Kustomize and Flux CRs
+5. Verify incremental updates work correctly
+6. Check for null/undefined in array iterations
+7. Use strict equality checks (`===`, `!==`)
+8. Handle file deletions gracefully
+

@@ -255,13 +255,20 @@ export class KustomizeParser {
         // Handle patches - also resolve relative to Git root
         const processPatchReferences = (patches: any[]) => {
             patches.forEach(patch => {
+                // Skip null/undefined array elements
+                if (patch === null || patch === undefined) {
+                    return;
+                }
+                
                 let patchPath: string | undefined;
 
                 if (typeof patch === 'string') {
                     patchPath = patch;
-                } else if (patch && typeof patch === 'object' && patch.path) {
+                } else if (typeof patch === 'object' && patch.path) {
+                    // Object format with path: patches: [{path: patch.yaml, target: {...}}]
                     patchPath = patch.path;
                 }
+                // Skip objects without path property (e.g., inline patches with only 'patch' field)
 
                 if (patchPath) {
                     const resolvedPath = this.resolveReference(filePath, patchPath);
@@ -389,13 +396,20 @@ export class KustomizeParser {
             for (const kustomization of kustomizations) {
                 const addReferences = (paths: (string | KustomizationPatch)[]) => {
                     for (const refPath of paths) {
+                        // Skip null/undefined array elements
+                        if (refPath === null || refPath === undefined) {
+                            continue;
+                        }
+                        
                         try {
                             let resolvedPath;
                             if (typeof refPath === 'string') {
                                 resolvedPath = this.resolveReference(filePath, refPath);
-                            } else if (refPath && typeof refPath === 'object' && refPath.path) {
+                            } else if (typeof refPath === 'object' && refPath.path) {
+                                // Object format with path: patches: [{path: patch.yaml, target: {...}}]
                                 resolvedPath = this.resolveReference(filePath, refPath.path);
                             } else {
+                                // Skip objects without path property (e.g., inline patches with only 'patch' field)
                                 continue;
                             }
 
@@ -432,7 +446,11 @@ export class KustomizeParser {
 
                 // Handle JSON 6902 patches which have a path field
                 kustomization.patchesJson6902.forEach(patch => {
-                    if (patch && typeof patch === 'object' && patch.path) {
+                    // Skip null/undefined array elements
+                    if (patch === null || patch === undefined) {
+                        return;
+                    }
+                    if (typeof patch === 'object' && patch.path) {
                         addReferences([patch.path]);
                     }
                 });

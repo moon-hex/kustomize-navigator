@@ -704,7 +704,7 @@ export class FluxDiagnosticProvider {
     private checkDeprecatedPatches(document: vscode.TextDocument, parsed: any, diagnostics: vscode.Diagnostic[]) {
         const text = document.getText();
         
-        // Check for patchesStrategicMerge (deprecated in Kustomize v5.0.0 and Flux v0.18+)
+        // Check for patchesStrategicMerge (deprecated in Kustomize v5.0.0, February 2023)
         if (parsed.patchesStrategicMerge && Array.isArray(parsed.patchesStrategicMerge) && parsed.patchesStrategicMerge.length > 0) {
             const fieldPos = text.indexOf('patchesStrategicMerge:');
             if (fieldPos !== -1) {
@@ -714,7 +714,7 @@ export class FluxDiagnosticProvider {
 
                 const diagnostic = new vscode.Diagnostic(
                     range,
-                    "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                    "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
                     vscode.DiagnosticSeverity.Warning
                 );
                 diagnostic.source = 'Kustomize Navigator';
@@ -723,7 +723,7 @@ export class FluxDiagnosticProvider {
             }
         }
 
-        // Check for patchesJson6902 (deprecated in Kustomize v5.0.0 and Flux v0.18+)
+        // Check for patchesJson6902 (deprecated in Kustomize v5.0.0, February 2023)
         if (parsed.patchesJson6902 && Array.isArray(parsed.patchesJson6902) && parsed.patchesJson6902.length > 0) {
             const fieldPos = text.indexOf('patchesJson6902:');
             if (fieldPos !== -1) {
@@ -733,7 +733,7 @@ export class FluxDiagnosticProvider {
 
                 const diagnostic = new vscode.Diagnostic(
                     range,
-                    "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                    "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
                     vscode.DiagnosticSeverity.Warning
                 );
                 diagnostic.source = 'Kustomize Navigator';
@@ -753,7 +753,7 @@ export class FluxDiagnosticProvider {
 
                     const diagnostic = new vscode.Diagnostic(
                         range,
-                        "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                        "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
                         vscode.DiagnosticSeverity.Warning
                     );
                     diagnostic.source = 'Kustomize Navigator';
@@ -771,7 +771,7 @@ export class FluxDiagnosticProvider {
 
                     const diagnostic = new vscode.Diagnostic(
                         range,
-                        "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                        "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 (February 2023).",
                         vscode.DiagnosticSeverity.Warning
                     );
                     diagnostic.source = 'Kustomize Navigator';

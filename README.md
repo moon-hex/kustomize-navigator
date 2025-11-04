@@ -40,10 +40,10 @@ The extension supports all patch formats used in Kustomize and Flux:
   - Inline patch: `patches: [{patch: |-..., target: {...}}]`
 
 ### Deprecated (Still Supported)
-- **`patchesStrategicMerge`**: Deprecated in Kustomize v5.0.0 and Flux v0.18+
+- **`patchesStrategicMerge`**: Deprecated in Kustomize v5.0.0 (February 2023)
   - Supported format: `patchesStrategicMerge: [patch.yaml]`
   - Use `patches` field instead
-- **`patchesJson6902`**: Deprecated in Kustomize v5.0.0 and Flux v0.18+
+- **`patchesJson6902`**: Deprecated in Kustomize v5.0.0 (February 2023)
   - Supported format: `patchesJson6902: [{path: patch.yaml, target: {...}}]`
   - Use `patches` field instead
 

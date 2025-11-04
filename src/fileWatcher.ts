@@ -33,15 +33,25 @@ export class KustomizeFileWatcher {
             false  // Don't ignore deletion events
         );
 
-        // Update references when kustomization files are created or changed
-        this.kustomizationFileWatcher.onDidCreate(() => this.debouncedScanWorkspace());
-        this.kustomizationFileWatcher.onDidChange(() => this.debouncedScanWorkspace());
-        this.kustomizationFileWatcher.onDidDelete(() => this.debouncedScanWorkspace());
+        // Update references incrementally when kustomization files are created or changed
+        this.kustomizationFileWatcher.onDidCreate((uri) => this.handleKustomizationFileChange(uri));
+        this.kustomizationFileWatcher.onDidChange((uri) => this.handleKustomizationFileChange(uri));
+        this.kustomizationFileWatcher.onDidDelete((uri) => this.handleKustomizationFileDelete(uri));
 
         // For all YAML files, check if they might be Flux Kustomizations
         this.allYamlFileWatcher.onDidCreate((uri) => this.handleYamlFileChange(uri));
         this.allYamlFileWatcher.onDidChange((uri) => this.handleYamlFileChange(uri));
-        this.allYamlFileWatcher.onDidDelete(() => this.debouncedScanWorkspace());
+        this.allYamlFileWatcher.onDidDelete((uri) => this.handleYamlFileDelete(uri));
+    }
+
+    private handleKustomizationFileChange(uri: vscode.Uri): void {
+        // Use incremental update for kustomization files
+        this.debouncedIncrementalUpdate(uri.fsPath);
+    }
+
+    private handleKustomizationFileDelete(uri: vscode.Uri): void {
+        // Handle deletion - will be handled in incremental update
+        this.debouncedIncrementalUpdate(uri.fsPath);
     }
 
     private handleYamlFileChange(uri: vscode.Uri): void {
@@ -54,8 +64,31 @@ export class KustomizeFileWatcher {
         // Check if this could be a Flux Kustomization CR
         if (this.parser.isFluxKustomizationFile(uri.fsPath)) {
             console.log(`Detected Flux Kustomization CR: ${uri.fsPath}`);
-            this.debouncedScanWorkspace();
+            this.debouncedIncrementalUpdate(uri.fsPath);
         }
+    }
+
+    private handleYamlFileDelete(uri: vscode.Uri): void {
+        // Handle deletion for YAML files
+        // For deleted files, we can't check if they were Flux Kustomizations,
+        // but updateFileReferencesIncremental will handle it gracefully
+        const fileName = uri.fsPath.toLowerCase();
+        if (fileName.endsWith('kustomization.yaml') || fileName.endsWith('kustomization.yml')) {
+            this.debouncedIncrementalUpdate(uri.fsPath);
+        } else {
+            // For other YAML files, check cache or just update (will be handled gracefully)
+            // The incremental update will check if file exists and handle deletion properly
+            this.debouncedIncrementalUpdate(uri.fsPath);
+        }
+    }
+
+    private debouncedIncrementalUpdate(filePath: string): void {
+        if (this.scanTimeout) {
+            clearTimeout(this.scanTimeout);
+        }
+        this.scanTimeout = setTimeout(() => {
+            this.updateFileReferences(filePath);
+        }, this.debounceDelay);
     }
 
     private debouncedScanWorkspace() {
@@ -69,7 +102,15 @@ export class KustomizeFileWatcher {
 
     private async updateReferences(): Promise<void> {
         console.log('Updating kustomization references (including Flux CRs)...');
+        // Use full rebuild for now - will be called with specific file path in incremental version
         await this.parser.buildReferenceMap();
+    }
+
+    /**
+     * Update references incrementally for a specific file
+     */
+    public async updateFileReferences(filePath: string): Promise<void> {
+        await this.parser.updateFileReferencesIncremental(filePath);
     }
 
     public getParser(): KustomizeParser {

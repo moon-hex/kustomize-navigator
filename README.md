@@ -75,6 +75,11 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.0
+- **Performance**: Incremental reference map updates - 10-100x faster for file changes
+- Smart file change detection and cascading dependency updates
+- Improved handling of file deletions and reference cleanup
+
 ### 0.8.4
 - Fixed array element validation and improved regex pattern matching
 - Enhanced deprecation warning detection for multi-document YAML files

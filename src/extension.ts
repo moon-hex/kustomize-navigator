@@ -6,6 +6,7 @@ import { FluxVariableDecorator } from './fluxDecorator';
 import { FluxCompletionProvider } from './fluxCompletionProvider';
 import { FluxDiagnosticProvider } from './fluxDiagnostics';
 import { KustomizeParser } from './kustomizeParser';
+import { PatchTransformProvider } from './patchTransformProvider';
 import { KustomizeReferencesView } from './kustomizeReferencesView';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -72,6 +73,16 @@ export async function activate(context: vscode.ExtensionContext) {
     // Register Flux diagnostic provider
     const diagnosticProvider = new FluxDiagnosticProvider();
     
+    // Register patch transform code action provider
+    const patchTransformProvider = new PatchTransformProvider();
+    const codeActionProviderDisposable = vscode.languages.registerCodeActionsProvider(
+        { language: 'yaml' },
+        patchTransformProvider,
+        {
+            providedCodeActionKinds: PatchTransformProvider.providedCodeActionKinds
+        }
+    );
+    
     // Register references view
     const referencesView = new KustomizeReferencesView(fileWatcher.getParser());
     
@@ -93,6 +104,7 @@ export async function activate(context: vscode.ExtensionContext) {
         hoverProviderDisposable,
         completionProviderDisposable,
         diagnosticProvider,
+        codeActionProviderDisposable,
         refreshCommand,
         openFileCommand
     );

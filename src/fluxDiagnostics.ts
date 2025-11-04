@@ -65,7 +65,8 @@ export class FluxDiagnosticProvider {
             gitopsComponents: checksConfig.get<boolean>('gitopsComponents', true),
             performanceIssues: checksConfig.get<boolean>('performanceIssues', true),
             variableSubstitution: checksConfig.get<boolean>('variableSubstitution', true),
-            indentation: checksConfig.get<boolean>('indentation', true)
+            indentation: checksConfig.get<boolean>('indentation', true),
+            deprecatedPatches: checksConfig.get<boolean>('deprecatedPatches', true)
         };
     }
     private analyzeDiagnostics(document: vscode.TextDocument) {
@@ -121,6 +122,9 @@ export class FluxDiagnosticProvider {
                 }
                 if (this.diagnosticConfig.performanceIssues) {
                     this.checkPerformanceIssues(document, parsed, diagnostics);
+                }
+                if (this.diagnosticConfig.deprecatedPatches) {
+                    this.checkDeprecatedPatches(document, parsed, diagnostics);
                 }
             }
             if (this.diagnosticConfig.indentation) {
@@ -696,6 +700,88 @@ export class FluxDiagnosticProvider {
 
         checkPrivileged(parsed, 'root');
     }
+
+    private checkDeprecatedPatches(document: vscode.TextDocument, parsed: any, diagnostics: vscode.Diagnostic[]) {
+        const text = document.getText();
+        
+        // Check for patchesStrategicMerge (deprecated in Kustomize v5.0.0 and Flux v0.18+)
+        if (parsed.patchesStrategicMerge && Array.isArray(parsed.patchesStrategicMerge) && parsed.patchesStrategicMerge.length > 0) {
+            const fieldPos = text.indexOf('patchesStrategicMerge:');
+            if (fieldPos !== -1) {
+                const startPos = document.positionAt(fieldPos);
+                const endPos = document.positionAt(fieldPos + 'patchesStrategicMerge'.length);
+                const range = new vscode.Range(startPos, endPos);
+
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Kustomize Navigator';
+                diagnostic.code = 'deprecated-patchesStrategicMerge';
+                diagnostics.push(diagnostic);
+            }
+        }
+
+        // Check for patchesJson6902 (deprecated in Kustomize v5.0.0 and Flux v0.18+)
+        if (parsed.patchesJson6902 && Array.isArray(parsed.patchesJson6902) && parsed.patchesJson6902.length > 0) {
+            const fieldPos = text.indexOf('patchesJson6902:');
+            if (fieldPos !== -1) {
+                const startPos = document.positionAt(fieldPos);
+                const endPos = document.positionAt(fieldPos + 'patchesJson6902'.length);
+                const range = new vscode.Range(startPos, endPos);
+
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Kustomize Navigator';
+                diagnostic.code = 'deprecated-patchesJson6902';
+                diagnostics.push(diagnostic);
+            }
+        }
+
+        // Also check Flux Kustomization CRs (spec.patchesStrategicMerge and spec.patchesJson6902)
+        if (parsed.spec) {
+            if (parsed.spec.patchesStrategicMerge && Array.isArray(parsed.spec.patchesStrategicMerge) && parsed.spec.patchesStrategicMerge.length > 0) {
+                const fieldPos = text.indexOf('patchesStrategicMerge:');
+                if (fieldPos !== -1) {
+                    const startPos = document.positionAt(fieldPos);
+                    const endPos = document.positionAt(fieldPos + 'patchesStrategicMerge'.length);
+                    const range = new vscode.Range(startPos, endPos);
+
+                    const diagnostic = new vscode.Diagnostic(
+                        range,
+                        "'patchesStrategicMerge' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                        vscode.DiagnosticSeverity.Warning
+                    );
+                    diagnostic.source = 'Kustomize Navigator';
+                    diagnostic.code = 'deprecated-patchesStrategicMerge';
+                    diagnostics.push(diagnostic);
+                }
+            }
+
+            if (parsed.spec.patchesJson6902 && Array.isArray(parsed.spec.patchesJson6902) && parsed.spec.patchesJson6902.length > 0) {
+                const fieldPos = text.indexOf('patchesJson6902:');
+                if (fieldPos !== -1) {
+                    const startPos = document.positionAt(fieldPos);
+                    const endPos = document.positionAt(fieldPos + 'patchesJson6902'.length);
+                    const range = new vscode.Range(startPos, endPos);
+
+                    const diagnostic = new vscode.Diagnostic(
+                        range,
+                        "'patchesJson6902' is deprecated. Use 'patches' field instead. Deprecated in Kustomize v5.0.0 and Flux v0.18+.",
+                        vscode.DiagnosticSeverity.Warning
+                    );
+                    diagnostic.source = 'Kustomize Navigator';
+                    diagnostic.code = 'deprecated-patchesJson6902';
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+
     public dispose() {
         this.diagnosticCollection.dispose();
         for (const disposable of this.disposables) {

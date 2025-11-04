@@ -6,6 +6,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.8.3] - 2025-11-04
+
+### Added
+- Deprecation warnings for `patchesStrategicMerge` and `patchesJson6902` fields
+- Code action to automatically transform deprecated patch fields to `patches` format
+- Configuration option `kustomizeNavigator.diagnostics.checks.deprecatedPatches` to enable/disable warnings
+
+### Changed
+- Improved patch format detection and transformation following `kustomize edit fix` behavior
+
 ## [0.8.2] - 2025-11-04
 
 ### Added

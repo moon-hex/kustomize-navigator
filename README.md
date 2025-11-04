@@ -75,6 +75,11 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.8.3
+- Added deprecation warnings for `patchesStrategicMerge` and `patchesJson6902`
+- Added quick fix code action to transform deprecated fields to `patches` format
+- New configuration option to control deprecation warnings
+
 ### 0.8.2
 - Enhanced patch format support: all combinations now support linking and highlighting
 - Improved reference detection for patch objects in YAML

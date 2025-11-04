@@ -12,11 +12,20 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         token: vscode.CancellationToken
     ): Promise<vscode.Hover | null> {
         try {
-            // If position is at the very top of the document, show back references
-            if (position.line === 0 && position.character < 10) {
-                const backRefHover = await this.provideBackReferenceHover(document);
-                if (backRefHover) {
-                    return backRefHover;
+            // If position is on the first apiVersion: line, show back references
+            const apiVersionLineNum = YamlUtils.findFirstApiVersionLine(document);
+            if (apiVersionLineNum !== null && position.line === apiVersionLineNum) {
+                const apiVersionLine = document.lineAt(apiVersionLineNum);
+                const lineText = apiVersionLine.text;
+                const commentIndex = lineText.indexOf('#');
+                const lineEnd = commentIndex >= 0 ? commentIndex : lineText.length;
+                
+                // Only show hover if cursor is on the apiVersion line (before comment if present)
+                if (position.character <= lineEnd) {
+                    const backRefHover = await this.provideBackReferenceHover(document);
+                    if (backRefHover) {
+                        return backRefHover;
+                    }
                 }
             }
             

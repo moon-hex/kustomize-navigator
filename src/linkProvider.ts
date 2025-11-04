@@ -200,21 +200,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     }
 
     /**
-     * Find the first line starting with apiVersion: in the document
-     * Returns the line number, or null if not found
-     */
-    private findFirstApiVersionLine(document: vscode.TextDocument): number | null {
-        for (let i = 0; i < document.lineCount; i++) {
-            const line = document.lineAt(i);
-            const trimmedLine = line.text.trim();
-            if (trimmedLine.startsWith('apiVersion:')) {
-                return i;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Process back references for non-kustomization files
      */
     private async processBackReferences(
@@ -226,7 +211,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
         if (backReferences.length > 0) {
             // Find the first line starting with apiVersion:
-            const apiVersionLineNum = this.findFirstApiVersionLine(document);
+            const apiVersionLineNum = YamlUtils.findFirstApiVersionLine(document);
             
             if (apiVersionLineNum === null) {
                 // Fallback to first line if apiVersion: not found

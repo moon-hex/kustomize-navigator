@@ -1,4 +1,5 @@
 import * as yaml from 'js-yaml';
+import * as vscode from 'vscode';
 
 /**
  * Utility functions for parsing and analyzing YAML documents
@@ -183,5 +184,20 @@ export class YamlUtils {
      */
     public static escapeRegex(string: string): string {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
+     * Find the first line starting with apiVersion: in the document
+     * Returns the line number, or null if not found
+     */
+    public static findFirstApiVersionLine(document: vscode.TextDocument): number | null {
+        for (let i = 0; i < document.lineCount; i++) {
+            const line = document.lineAt(i);
+            const trimmedLine = line.text.trim();
+            if (trimmedLine.startsWith('apiVersion:')) {
+                return i;
+            }
+        }
+        return null;
     }
 }

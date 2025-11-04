@@ -13,7 +13,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
     ): Promise<vscode.Hover | null> {
         try {
             // If position is on the first apiVersion: line, show back references
-            const apiVersionLineNum = this.findFirstApiVersionLine(document);
+            const apiVersionLineNum = YamlUtils.findFirstApiVersionLine(document);
             if (apiVersionLineNum !== null && position.line === apiVersionLineNum) {
                 const apiVersionLine = document.lineAt(apiVersionLineNum);
                 const lineText = apiVersionLine.text;
@@ -273,21 +273,6 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         }
     }
     
-    /**
-     * Find the first line starting with apiVersion: in the document
-     * Returns the line number, or null if not found
-     */
-    private findFirstApiVersionLine(document: vscode.TextDocument): number | null {
-        for (let i = 0; i < document.lineCount; i++) {
-            const line = document.lineAt(i);
-            const trimmedLine = line.text.trim();
-            if (trimmedLine.startsWith('apiVersion:')) {
-                return i;
-            }
-        }
-        return null;
-    }
-
     private async provideBackReferenceHover(document: vscode.TextDocument): Promise<vscode.Hover | null> {
         // Get back references
         const backRefs = this.parser.getBackReferencesForFile(document.fileName);

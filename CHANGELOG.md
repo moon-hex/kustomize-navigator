@@ -6,6 +6,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.6] - 2025-11-05
+
+### Fixed
+- **Back reference lookup**: Fixed back references not showing for k8s kustomization.yaml files when referenced by Flux kustomizations
+- Improved path normalization to handle both absolute and relative paths consistently
+- Back references now work correctly for all file types regardless of how they're referenced (Flux Git root relative vs K8s file relative)
+
 ## [0.9.5] - 2025-11-05
 
 ### Removed

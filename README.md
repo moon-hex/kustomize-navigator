@@ -5,11 +5,10 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 ## Features
 
 - **Smart Navigation**: Ctrl+click to navigate between Kustomize files
-- **Back References**: View which files reference the current file
+- **Back References**: View which files reference the current file (hover on `apiVersion:` line)
 - **Flux Support**: Works with both standard Kustomize and Flux CD
 - **Variable Highlighting**: Highlights and validates Flux variable substitutions
 - **Intelligent Diagnostics**: Identifies common configuration issues
-- **References Explorer**: View all references in a dedicated panel
 - **Comprehensive Patch Support**: Full linking and highlighting for all patch formats (including deprecated ones for backward compatibility)
 
 ![Kustomize Navigator Demo](https://github.com/moon-hex/kustomize_navigator_resources/blob/main/demo.png?raw=true)
@@ -18,7 +17,7 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 
 1. Open a Kubernetes GitOps repository
 2. Use Ctrl+Click on any kustomization reference to navigate
-3. View back references in the "Kustomize Back References" panel
+3. Hover over the `apiVersion:` line to see which files reference the current file
 4. Hover over Flux variables for details and suggestions
 
 ## Extension Settings
@@ -76,11 +75,14 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.6
+- **Fixed**: Back references now work correctly for k8s kustomization.yaml files referenced by Flux kustomizations
+- Improved path normalization for consistent back reference lookup
+
 ### 0.9.5
 - **Removed**: Side panel with back references (duplicated functionality)
 - **Simplified**: Back reference hover now shows only "Referenced by:" with clickable list
 - Removed document counts and document types from hover tooltips
-- Cleaner, more focused user interface
 
 ### 0.9.4
 - **Fixed**: Back reference links now correctly placed on first `apiVersion:` line (handles multi-YAML with `---`, comments, empty lines)

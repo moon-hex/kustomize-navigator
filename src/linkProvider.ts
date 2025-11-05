@@ -54,16 +54,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 }
             }
 
-            // If no kustomization documents found, process back references
-            const hasKustomizationDocs = yamlDocuments.some(doc =>
-                YamlUtils.isFluxKustomizationDocument(doc) ||
-                (path.basename(document.fileName).match(/^kustomization\.ya?ml$/) && YamlUtils.isStandardKustomizationDocument(doc))
-            );
-
-            if (!hasKustomizationDocs) {
-                // For non-kustomization files, add links to files that reference this one
-                await this.processBackReferences(document, links);
-            }
 
             // Update diagnostics for this document
             this.diagnosticCollection.set(document.uri, diagnostics);
@@ -199,56 +189,6 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         }
     }
 
-    /**
-     * Process back references for non-kustomization files
-     */
-    private async processBackReferences(
-        document: vscode.TextDocument,
-        links: vscode.DocumentLink[]
-    ): Promise<void> {
-        // Get files that reference this file
-        const backReferences = this.parser.getBackReferencesForFile(document.fileName);
-
-        if (backReferences.length > 0) {
-            // Find the first line starting with apiVersion:
-            const apiVersionLineNum = YamlUtils.findFirstApiVersionLine(document);
-            
-            if (apiVersionLineNum === null) {
-                // Fallback to first line if apiVersion: not found
-                const firstLine = document.lineAt(0);
-                for (const ref of backReferences) {
-                    const uri = vscode.Uri.file(ref.path);
-                    const linkRange = new vscode.Range(
-                        firstLine.range.start,
-                        firstLine.range.end
-                    );
-                    const docLink = new vscode.DocumentLink(linkRange, uri);
-                    docLink.tooltip = `Referenced by ${ref.type.toUpperCase()} Kustomization: ${path.basename(ref.path)}`;
-                    links.push(docLink);
-                }
-                return;
-            }
-
-            const apiVersionLine = document.lineAt(apiVersionLineNum);
-            // Select whole line until EOL or # (comment)
-            const lineText = apiVersionLine.text;
-            const commentIndex = lineText.indexOf('#');
-            const endPosition = commentIndex >= 0 
-                ? new vscode.Position(apiVersionLineNum, commentIndex)
-                : apiVersionLine.range.end;
-
-            for (const ref of backReferences) {
-                const uri = vscode.Uri.file(ref.path);
-                const linkRange = new vscode.Range(
-                    apiVersionLine.range.start,
-                    endPosition
-                );
-                const docLink = new vscode.DocumentLink(linkRange, uri);
-                docLink.tooltip = `Referenced by ${ref.type.toUpperCase()} Kustomization: ${path.basename(ref.path)}`;
-                links.push(docLink);
-            }
-        }
-    }
 
     /**
      * Add a clickable link for a Flux Kustomization reference (Git root relative)

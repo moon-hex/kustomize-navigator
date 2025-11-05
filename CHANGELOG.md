@@ -6,6 +6,19 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.7] - 2025-11-05
+
+### Changed
+- **Back references now inline**: Back references are now displayed as inline text decorations on the `apiVersion:` line, similar to `[Kustomize]`/`[Flux]` badges
+- Shows `[Referenced by: file.yaml]` or `[Referenced by: 2 files]` directly in the editor
+- Hover on the decoration shows clickable list of all referencing files
+- Removed separate hover and link functionality for back references (now unified in decoration)
+
+### Improved
+- Better visual integration: back references appear alongside kustomization type badges
+- More discoverable: back references are always visible, not just on hover
+- Consistent UI: matches the existing `[Kustomize]`/`[Flux]` decoration pattern
+
 ## [0.9.6] - 2025-11-05
 
 ### Fixed

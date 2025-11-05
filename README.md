@@ -75,6 +75,11 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.7
+- **Changed**: Back references now displayed inline on `apiVersion:` line as `[Referenced by: file.yaml]`
+- More discoverable: always visible in editor, not just on hover
+- Consistent with existing `[Kustomize]`/`[Flux]` badge pattern
+
 ### 0.9.6
 - **Fixed**: Back references now work correctly for k8s kustomization.yaml files referenced by Flux kustomizations
 - Improved path normalization for consistent back reference lookup

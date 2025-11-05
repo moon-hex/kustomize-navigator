@@ -85,6 +85,19 @@ export class KustomizeParser {
     }
 
     /**
+     * Normalize a file path to ensure consistent lookup
+     * Converts to absolute path and normalizes it
+     */
+    private normalizeFilePath(filePath: string): string {
+        // If already absolute, normalize it
+        if (path.isAbsolute(filePath)) {
+            return path.normalize(filePath);
+        }
+        // Otherwise, resolve relative to workspace root and normalize
+        return path.normalize(path.resolve(this.workspaceRoot, filePath));
+    }
+
+    /**
      * Find Git repository root for a given file path
      */
     private findGitRoot(filePath: string): string {
@@ -636,12 +649,13 @@ export class KustomizeParser {
      */
     private updateFileReferences(filePath: string): void {
         // Remove old back-references for this file
-        const oldReferences = this.referenceMap.fileReferences.get(filePath) || [];
+        const normalizedFilePath = this.normalizeFilePath(filePath);
+        const oldReferences = this.referenceMap.fileReferences.get(normalizedFilePath) || [];
         oldReferences.forEach(oldRef => {
-            const normalizedOldRef = path.normalize(oldRef);
+            const normalizedOldRef = this.normalizeFilePath(oldRef);
             const backRefs = this.referenceMap.fileBackReferences.get(normalizedOldRef);
             if (backRefs) {
-                const index = backRefs.findIndex(ref => ref.path === filePath);
+                const index = backRefs.findIndex(ref => ref.path === normalizedFilePath);
                 if (index !== -1) {
                     backRefs.splice(index, 1);
                     // Remove empty back-reference entries
@@ -655,13 +669,14 @@ export class KustomizeParser {
         // Get new references
         const newReferences = this.processFileReferences(filePath);
         
-        // Store new references
-        this.referenceMap.fileReferences.set(filePath, newReferences);
+        // Store new references (use normalized path as key)
+        this.referenceMap.fileReferences.set(normalizedFilePath, newReferences);
 
         // Update dependency map - track which files this file references
         const referencedFiles = new Set<string>();
         newReferences.forEach(ref => {
-            const normalizedRef = path.normalize(ref);
+            // Normalize the referenced file path for consistent lookup
+            const normalizedRef = this.normalizeFilePath(ref);
             referencedFiles.add(normalizedRef);
             
             // Update back-references
@@ -671,8 +686,10 @@ export class KustomizeParser {
             
             const backRefs = this.referenceMap.fileBackReferences.get(normalizedRef)!;
             const refType = this.fileMetadataCache.get(filePath)?.isFluxKustomization ? 'flux' : 'k8s';
-            if (!backRefs.some(ref => ref.path === filePath)) {
-                backRefs.push({ path: filePath, type: refType });
+            // Normalize the referencing file path for consistency
+            const normalizedFilePath = this.normalizeFilePath(filePath);
+            if (!backRefs.some(ref => ref.path === normalizedFilePath)) {
+                backRefs.push({ path: normalizedFilePath, type: refType });
             }
         });
 
@@ -684,7 +701,7 @@ export class KustomizeParser {
      * Update references for a file and any files that depend on it (cascade update)
      */
     public async updateFileReferencesIncremental(filePath: string): Promise<void> {
-        const normalizedPath = path.normalize(filePath);
+        const normalizedPath = this.normalizeFilePath(filePath);
         
         // Check if file still exists (might have been deleted)
         if (!this.cachedFileExists(normalizedPath)) {
@@ -724,7 +741,7 @@ export class KustomizeParser {
      * Remove a file from the reference map (when file is deleted)
      */
     private removeFileReferences(filePath: string): void {
-        const normalizedPath = path.normalize(filePath);
+        const normalizedPath = this.normalizeFilePath(filePath);
         
         // Remove from file references
         const oldReferences = this.referenceMap.fileReferences.get(normalizedPath) || [];
@@ -732,7 +749,7 @@ export class KustomizeParser {
 
         // Remove back-references: this file was referencing other files, so remove those back-refs
         oldReferences.forEach(oldRef => {
-            const normalizedOldRef = path.normalize(oldRef);
+            const normalizedOldRef = this.normalizeFilePath(oldRef);
             const backRefs = this.referenceMap.fileBackReferences.get(normalizedOldRef);
             if (backRefs) {
                 const index = backRefs.findIndex(ref => ref.path === normalizedPath);
@@ -751,6 +768,7 @@ export class KustomizeParser {
             // Files that reference the deleted file need to be updated
             backRefsToThisFile.forEach(backRef => {
                 // Remove the reference from those files (they'll be updated on next change)
+                // backRef.path is already normalized when stored
                 const refs = this.referenceMap.fileReferences.get(backRef.path);
                 if (refs) {
                     const index = refs.indexOf(normalizedPath);
@@ -794,15 +812,16 @@ export class KustomizeParser {
      * Get references for a specific file
      */
     public getReferencesForFile(filePath: string): string[] {
-        return this.referenceMap.fileReferences.get(filePath) || [];
+        const normalizedPath = this.normalizeFilePath(filePath);
+        return this.referenceMap.fileReferences.get(normalizedPath) || [];
     }
 
     /**
      * Get back-references for a specific file (files that reference this file)
      */
     public getBackReferencesForFile(filePath: string): Array<{path: string, type: 'flux' | 'k8s'}> {
-        // Normalize the path to ensure consistent lookup
-        const normalizedPath = path.normalize(filePath);
+        // Normalize the path to ensure consistent lookup (handle both absolute and relative paths)
+        const normalizedPath = this.normalizeFilePath(filePath);
         return this.referenceMap.fileBackReferences.get(normalizedPath) || [];
     }
 

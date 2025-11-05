@@ -210,11 +210,9 @@ export class FluxVariableDecorator {
             
             // Get back references for this file
             let backRefHover: vscode.MarkdownString | undefined;
-            let hasBackReferences = false;
             if (this.parser) {
                 const backRefs = this.parser.getBackReferencesForFile(editor.document.fileName);
                 if (backRefs.length > 0) {
-                    hasBackReferences = true;
                     backRefHover = this.createBackReferenceHover(backRefs);
                 }
             }
@@ -237,7 +235,7 @@ export class FluxVariableDecorator {
                 });
                 
                 // Add underline decoration extending to end of line for back references
-                if (hasBackReferences) {
+                if (backRefHover) {
                     const lineEnd = editor.document.lineAt(range.start.line).range.end;
                     backReferenceDecorations.push({
                         range: new vscode.Range(range.start, lineEnd)
@@ -260,13 +258,13 @@ export class FluxVariableDecorator {
                 });
                 
                 // Add underline decoration extending to end of line for back references
-                if (hasBackReferences) {
+                if (backRefHover) {
                     const lineEnd = editor.document.lineAt(range.start.line).range.end;
                     backReferenceDecorations.push({
                         range: new vscode.Range(range.start, lineEnd)
                     });
                 }
-            } else if (hasBackReferences) {
+            } else if (backRefHover) {
                 // For non-kustomization files with back references, add underline only
                 // No badge, just visual indicator with hover
                 const lineEnd = editor.document.lineAt(range.start.line).range.end;

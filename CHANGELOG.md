@@ -6,6 +6,19 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.5] - 2025-11-05
+
+### Removed
+- **Side panel**: Removed "Kustomize Back References" side panel view (duplicated functionality)
+- **Document counts**: Removed document count information from hover tooltips and status bar
+- **Document types**: Removed document type information from hover tooltips
+- **File Information section**: Removed "File Information" section from back reference hover
+
+### Changed
+- **Simplified hover**: Back reference hover now shows only "Referenced by:" with a simple list of clickable references
+- Removed unnecessary sorting by document count
+- Cleaner, more focused user interface
+
 ## [0.9.4] - 2025-11-04
 
 ### Fixed

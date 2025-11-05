@@ -76,6 +76,12 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.5
+- **Removed**: Side panel with back references (duplicated functionality)
+- **Simplified**: Back reference hover now shows only "Referenced by:" with clickable list
+- Removed document counts and document types from hover tooltips
+- Cleaner, more focused user interface
+
 ### 0.9.4
 - **Fixed**: Back reference links now correctly placed on first `apiVersion:` line (handles multi-YAML with `---`, comments, empty lines)
 - Link range extends to end of line or comment marker

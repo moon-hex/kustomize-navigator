@@ -7,7 +7,6 @@ import { FluxCompletionProvider } from './fluxCompletionProvider';
 import { FluxDiagnosticProvider } from './fluxDiagnostics';
 import { KustomizeParser } from './kustomizeParser';
 import { PatchTransformProvider } from './patchTransformProvider';
-import { KustomizeReferencesView } from './kustomizeReferencesView';
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Kustomize Navigator checking if workspace contains kustomization files...');
@@ -87,19 +86,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     );
     
-    // Register references view
-    const referencesView = new KustomizeReferencesView(fileWatcher.getParser());
-    
-    // Register refresh command for references view
-    const refreshCommand = vscode.commands.registerCommand('kustomizeNavigator.refreshReferences', () => {
-        referencesView.refresh();
-    });
-    
-    // Register open file command for references view
-    const openFileCommand = vscode.commands.registerCommand('kustomizeNavigator.openFile', (uri: vscode.Uri) => {
-        vscode.commands.executeCommand('vscode.open', uri);
-    });
-    
     // Add disposables to context.subscriptions
     context.subscriptions.push(
         fileWatcher,
@@ -108,9 +94,7 @@ export async function activate(context: vscode.ExtensionContext) {
         hoverProviderDisposable,
         completionProviderDisposable,
         diagnosticProvider,
-        codeActionProviderDisposable,
-        refreshCommand,
-        openFileCommand
+        codeActionProviderDisposable
     );
 
     // Log success

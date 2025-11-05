@@ -75,6 +75,18 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.8
+- **Changed**: Back reference decorations now have underline styling (URL-like appearance) for better visibility
+- **Fixed**: Improved path normalization for back reference lookup when Flux kustomizations reference k8s kustomization.yaml files
+- Normalized Git root and all resolved paths for consistent back reference matching
+- Proper handling of `./` prefix and directory-to-file path resolution
+- **Improved**: Path normalization optimized - removed redundant operations, standardized on `normalizeFilePath()` method
+
+### 0.9.7
+- **Changed**: Back references now displayed inline on `apiVersion:` line as `[Referenced by: file.yaml]`
+- More discoverable: always visible in editor, not just on hover
+- Consistent with existing `[Kustomize]`/`[Flux]` badge pattern
+
 ### 0.9.6
 - **Fixed**: Back references now work correctly for k8s kustomization.yaml files referenced by Flux kustomizations
 - Improved path normalization for consistent back reference lookup

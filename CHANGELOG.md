@@ -6,6 +6,42 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.8] - 2025-11-05
+
+### Changed
+- **Back reference visibility**: Back reference decorations now have underline styling (URL-like appearance) for better visibility
+- Underline extends across the entire `apiVersion:` line when back references are present
+
+### Fixed
+- **Path normalization for back references**: Improved path normalization to ensure back references work correctly when Flux kustomizations reference k8s kustomization.yaml files
+- Normalized Git root paths to handle different path formats from Git commands
+- Normalized all resolved paths (including directory-to-file resolution) for consistent back reference lookup
+- Proper handling of `./` prefix removal in Flux references
+- Directory references now correctly resolve to `kustomization.yaml`/`kustomization.yml` files with normalized paths
+- Case sensitivity preserved (important for Flux error detection)
+
+### Improved
+- **Path normalization optimization**: Reviewed and optimized path normalization to avoid redundant operations
+- Standardized on `normalizeFilePath()` method for consistent path handling throughout the codebase
+- Removed redundant `path.normalize()` calls (e.g., `resolveReference()` already returns normalized paths)
+- All path normalization operations are now idempotent (safe to call multiple times)
+- Improved consistency: all file operations now use `normalizeFilePath()` for uniform path resolution
+- All path resolution steps now use consistent normalization
+- Back reference lookup now works reliably for all reference types (Flux Git root relative vs K8s file relative)
+
+## [0.9.7] - 2025-11-05
+
+### Changed
+- **Back references now inline**: Back references are now displayed as inline text decorations on the `apiVersion:` line, similar to `[Kustomize]`/`[Flux]` badges
+- Shows `[Referenced by: file.yaml]` or `[Referenced by: 2 files]` directly in the editor
+- Hover on the decoration shows clickable list of all referencing files
+- Removed separate hover and link functionality for back references (now unified in decoration)
+
+### Improved
+- Better visual integration: back references appear alongside kustomization type badges
+- More discoverable: back references are always visible, not just on hover
+- Consistent UI: matches the existing `[Kustomize]`/`[Flux]` decoration pattern
+
 ## [0.9.6] - 2025-11-05
 
 ### Fixed

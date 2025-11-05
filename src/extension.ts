@@ -60,8 +60,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     let fluxDecorator;
     if (highlightEnabled) {
-        // Register Flux variable decorator
-        fluxDecorator = new FluxVariableDecorator();
+        // Register Flux variable decorator (pass parser for back reference decorations)
+        fluxDecorator = new FluxVariableDecorator(fileWatcher.getParser());
         context.subscriptions.push(fluxDecorator);
     }
 

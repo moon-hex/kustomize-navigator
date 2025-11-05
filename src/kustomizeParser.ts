@@ -87,6 +87,7 @@ export class KustomizeParser {
     /**
      * Normalize a file path to ensure consistent lookup
      * Converts to absolute path and normalizes it
+     * Preserves case (important: Flux errors on case mismatches)
      */
     private normalizeFilePath(filePath: string): string {
         // If already absolute, normalize it
@@ -114,14 +115,17 @@ export class KustomizeParser {
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'ignore']
             });
-            const gitRoot = result.trim();
+            // Normalize the Git root path to ensure consistent path resolution
+            // Git might return paths with different separators or format than expected
+            const gitRoot = path.normalize(result.trim());
             this.gitRootCache.set(cacheKey, gitRoot);
             return gitRoot;
         } catch (error) {
             // Fallback to workspace root if git command fails
             console.warn(`Git command failed for ${filePath}, using workspace root`);
-            this.gitRootCache.set(cacheKey, this.workspaceRoot);
-            return this.workspaceRoot;
+            const normalizedWorkspaceRoot = path.normalize(this.workspaceRoot);
+            this.gitRootCache.set(cacheKey, normalizedWorkspaceRoot);
+            return normalizedWorkspaceRoot;
         }
     }
 
@@ -269,12 +273,15 @@ export class KustomizeParser {
 
         // Handle spec.path - resolve relative to Git root
         if (spec.path && typeof spec.path === 'string') {
+            // resolveReference already returns a normalized path
             const resolvedPath = this.resolveReference(filePath, spec.path);
-
+            
             // Check if path points to directory with kustomization.yaml
             if (this.isDirectory(resolvedPath)) {
-                const kustomizationYaml = path.join(resolvedPath, 'kustomization.yaml');
-                const kustomizationYml = path.join(resolvedPath, 'kustomization.yml');
+                // path.join with normalized paths should produce normalized paths,
+                // but normalize to be safe (path.normalize is idempotent)
+                const kustomizationYaml = path.normalize(path.join(resolvedPath, 'kustomization.yaml'));
+                const kustomizationYml = path.normalize(path.join(resolvedPath, 'kustomization.yml'));
 
                 if (this.fileExists(kustomizationYaml)) {
                     references.push(kustomizationYaml);
@@ -351,16 +358,18 @@ export class KustomizeParser {
             const gitRoot = this.findGitRoot(basePath);
             // Handle relative paths properly
             if (path.isAbsolute(reference)) {
-                return reference;
+                return path.normalize(reference);
             } else {
                 // Remove leading "./" if present and resolve relative to git root
                 const cleanReference = reference.startsWith('./') ? reference.slice(2) : reference;
-                return path.resolve(gitRoot, cleanReference);
+                // path.resolve already normalizes, but ensure it's normalized
+                return path.normalize(path.resolve(gitRoot, cleanReference));
             }
         } else {
             // For standard kustomization files, resolve relative to file location
             const baseDir = path.dirname(basePath);
-            return path.resolve(baseDir, reference);
+            // path.resolve already normalizes, but ensure it's normalized
+            return path.normalize(path.resolve(baseDir, reference));
         }
     }
 
@@ -388,7 +397,8 @@ export class KustomizeParser {
      * Trusts cache entries (no validation on access) - relies on file watcher for invalidation
      */
     private getCachedStat(filePath: string): CachedFileStat | null {
-        const normalizedPath = path.normalize(filePath);
+        // Use normalizeFilePath for consistent handling (idempotent if already normalized)
+        const normalizedPath = this.normalizeFilePath(filePath);
         
         // If caching is disabled, fetch directly from filesystem
         if (!this.enableFileSystemCache) {
@@ -437,7 +447,8 @@ export class KustomizeParser {
      * Includes safety fallback: if file operation fails unexpectedly, validates that entry
      */
     public cachedFileExists(filePath: string): boolean {
-        const normalizedPath = path.normalize(filePath);
+        // Use normalizeFilePath for consistent handling (idempotent if already normalized)
+        const normalizedPath = this.normalizeFilePath(filePath);
         
         // If caching is disabled, check directly
         if (!this.enableFileSystemCache) {
@@ -487,7 +498,8 @@ export class KustomizeParser {
             return;
         }
         
-        const normalizedPath = path.normalize(filePath);
+        // Use normalizeFilePath for consistent handling (idempotent if already normalized)
+        const normalizedPath = this.normalizeFilePath(filePath);
         this.invalidateFileCache(normalizedPath);
         
         // Re-check and update cache
@@ -509,7 +521,9 @@ export class KustomizeParser {
      * Check if path is a directory (cached)
      */
     public cachedIsDirectory(filePath: string): boolean {
-        const stat = this.getCachedStat(filePath);
+        // Use normalizeFilePath for consistent handling (idempotent if already normalized)
+        const normalizedPath = this.normalizeFilePath(filePath);
+        const stat = this.getCachedStat(normalizedPath);
         return stat?.isDirectory ?? false;
     }
 
@@ -525,7 +539,8 @@ export class KustomizeParser {
      * Invalidate cache entries for a file (called when file changes)
      */
     private invalidateFileCache(filePath: string): void {
-        const normalizedPath = path.normalize(filePath);
+        // Use normalizeFilePath for consistent handling (idempotent if already normalized)
+        const normalizedPath = this.normalizeFilePath(filePath);
         this.fileExistsCache.delete(normalizedPath);
         this.fileStatCache.delete(normalizedPath);
     }
@@ -836,7 +851,8 @@ export class KustomizeParser {
      * Check if a file exists (cached)
      */
     public fileExists(filePath: string): boolean {
-        const normalizedPath = path.normalize(filePath);
+        // Use normalizeFilePath for consistent handling (idempotent if already normalized)
+        const normalizedPath = this.normalizeFilePath(filePath);
         if (!this.cachedFileExists(normalizedPath)) {
             return false;
         }

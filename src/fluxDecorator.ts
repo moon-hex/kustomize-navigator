@@ -1,15 +1,18 @@
 // fluxDecorator.ts
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { KustomizeParser } from './kustomizeParser';
 
 export class FluxVariableDecorator {
     private variableDecorationType!: vscode.TextEditorDecorationType;
     private defaultValueDecorationType!: vscode.TextEditorDecorationType;
     private kustomizeDecorationType!: vscode.TextEditorDecorationType;
     private fluxDecorationType!: vscode.TextEditorDecorationType;
+    private backReferenceDecorationType!: vscode.TextEditorDecorationType;
     private readonly variablePattern = /\${([^}]+)}/g;
     private disposables: vscode.Disposable[] = [];
     
-    constructor() {
+    constructor(private parser?: KustomizeParser) {
         // Initialize the decoration types
         this.createDecorationTypes();
         
@@ -88,22 +91,19 @@ export class FluxVariableDecorator {
             backgroundColor: `${defaultValueColor}${variableOpacity}`
         });
         
-        // Kustomize API version decoration
+        // Kustomize API version decoration (dynamic content via renderOptions)
         this.kustomizeDecorationType = vscode.window.createTextEditorDecorationType({
-            after: {
-                contentText: ' [Kustomize]',
-                color: kustomizeApiColor,
-                margin: '0 0 0 1em'
-            }
+            // Note: Actual content is set via renderOptions in decoration options
         });
         
-        // Flux API version decoration
+        // Flux API version decoration (dynamic content via renderOptions)
         this.fluxDecorationType = vscode.window.createTextEditorDecorationType({
-            after: {
-                contentText: ' [Flux]',
-                color: fluxApiColor,
-                margin: '0 0 0 1em'
-            }
+            // Note: Actual content is set via renderOptions in decoration options
+        });
+        
+        // Back reference decoration with underline (URL-like appearance)
+        this.backReferenceDecorationType = vscode.window.createTextEditorDecorationType({
+            textDecoration: 'underline'
         });
     }
     
@@ -112,6 +112,7 @@ export class FluxVariableDecorator {
         this.defaultValueDecorationType.dispose();
         this.kustomizeDecorationType.dispose();
         this.fluxDecorationType.dispose();
+        this.backReferenceDecorationType.dispose();
     }
     
     private registerEventHandlers() {
@@ -151,6 +152,7 @@ export class FluxVariableDecorator {
         const defaultValueDecorations: vscode.DecorationOptions[] = [];
         const kustomizeApiDecorations: vscode.DecorationOptions[] = [];
         const fluxApiDecorations: vscode.DecorationOptions[] = [];
+        const backReferenceDecorations: vscode.DecorationOptions[] = [];
         
         // Find and decorate variables
         let match;
@@ -204,11 +206,94 @@ export class FluxVariableDecorator {
             const endPos = editor.document.positionAt(match.index + match[0].length);
             const range = new vscode.Range(startPos, endPos);
             
+            // Get back references for this file
+            let backRefText = '';
+            let backRefHover: vscode.MarkdownString | undefined;
+            if (this.parser) {
+                const backRefs = this.parser.getBackReferencesForFile(editor.document.fileName);
+                if (backRefs.length > 0) {
+                    if (backRefs.length === 1) {
+                        const refName = path.basename(path.dirname(backRefs[0].path)) + '/' + path.basename(backRefs[0].path);
+                        backRefText = ` [Referenced by: ${refName}]`;
+                    } else {
+                        backRefText = ` [Referenced by: ${backRefs.length} files]`;
+                    }
+                    backRefHover = this.createBackReferenceHover(backRefs);
+                }
+            }
+            
             // Check what type of API version it is
             if (apiVersion.startsWith('kustomize.config.k8s.io/')) {
-                kustomizeApiDecorations.push({ range });
+                const config = vscode.workspace.getConfiguration('kustomizeNavigator');
+                const kustomizeApiColor = config.get<string>('kustomizeApiColor', '#27ae60');
+                
+                kustomizeApiDecorations.push({
+                    range,
+                    renderOptions: {
+                        after: {
+                            contentText: ` [Kustomize]${backRefText}`,
+                            color: kustomizeApiColor,
+                            margin: '0 0 0 1em'
+                        }
+                    },
+                    hoverMessage: backRefHover
+                });
+                
+                // Add underline decoration extending to end of line for back references
+                if (backRefText) {
+                    const lineEnd = editor.document.lineAt(range.start.line).range.end;
+                    backReferenceDecorations.push({
+                        range: new vscode.Range(range.start, lineEnd),
+                        hoverMessage: backRefHover
+                    });
+                }
             } else if (apiVersion.startsWith('kustomize.toolkit.fluxcd.io/')) {
-                fluxApiDecorations.push({ range });
+                const config = vscode.workspace.getConfiguration('kustomizeNavigator');
+                const fluxApiColor = config.get<string>('fluxApiColor', '#e74c3c');
+                
+                fluxApiDecorations.push({
+                    range,
+                    renderOptions: {
+                        after: {
+                            contentText: ` [Flux]${backRefText}`,
+                            color: fluxApiColor,
+                            margin: '0 0 0 1em'
+                        }
+                    },
+                    hoverMessage: backRefHover
+                });
+                
+                // Add underline decoration extending to end of line for back references
+                if (backRefText) {
+                    const lineEnd = editor.document.lineAt(range.start.line).range.end;
+                    backReferenceDecorations.push({
+                        range: new vscode.Range(range.start, lineEnd),
+                        hoverMessage: backRefHover
+                    });
+                }
+            } else if (backRefText) {
+                // For non-kustomization files with back references, add a decoration
+                const config = vscode.workspace.getConfiguration('kustomizeNavigator');
+                const backRefColor = config.get<string>('kustomizeApiColor', '#27ae60');
+                
+                kustomizeApiDecorations.push({
+                    range,
+                    renderOptions: {
+                        after: {
+                            contentText: backRefText,
+                            color: backRefColor,
+                            margin: '0 0 0 1em'
+                        }
+                    },
+                    hoverMessage: backRefHover
+                });
+                
+                // Add underline decoration extending to end of line for back references
+                const lineEnd = editor.document.lineAt(range.start.line).range.end;
+                backReferenceDecorations.push({
+                    range: new vscode.Range(range.start, lineEnd),
+                    hoverMessage: backRefHover
+                });
             }
         }
         
@@ -217,6 +302,7 @@ export class FluxVariableDecorator {
         editor.setDecorations(this.defaultValueDecorationType, defaultValueDecorations);
         editor.setDecorations(this.kustomizeDecorationType, kustomizeApiDecorations);
         editor.setDecorations(this.fluxDecorationType, fluxApiDecorations);
+        editor.setDecorations(this.backReferenceDecorationType, backReferenceDecorations);
     }
     
     private createHoverMessage(variableContent: string): vscode.MarkdownString {
@@ -236,6 +322,22 @@ export class FluxVariableDecorator {
         
         hoverMessage.appendMarkdown(`*This variable will be substituted during Flux's post-build phase.*\n\n`);
         hoverMessage.appendMarkdown(`[Flux Documentation](https://fluxcd.io/flux/components/kustomize/kustomization/#variable-substitution)`);
+        
+        return hoverMessage;
+    }
+
+    private createBackReferenceHover(backRefs: Array<{path: string, type: 'flux' | 'k8s'}>): vscode.MarkdownString {
+        const hoverMessage = new vscode.MarkdownString();
+        hoverMessage.isTrusted = true;
+        hoverMessage.supportHtml = true;
+        
+        hoverMessage.appendMarkdown(`### Referenced by:\n\n`);
+        
+        backRefs.forEach(ref => {
+            const refUri = vscode.Uri.file(ref.path);
+            const refName = path.basename(path.dirname(ref.path)) + '/' + path.basename(ref.path);
+            hoverMessage.appendMarkdown(`- [\`${refName}\`](${refUri.toString()})\n`);
+        });
         
         return hoverMessage;
     }

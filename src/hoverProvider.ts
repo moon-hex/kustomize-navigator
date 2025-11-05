@@ -12,23 +12,6 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         token: vscode.CancellationToken
     ): Promise<vscode.Hover | null> {
         try {
-            // If position is on the first apiVersion: line, show back references
-            const apiVersionLineNum = YamlUtils.findFirstApiVersionLine(document);
-            if (apiVersionLineNum !== null && position.line === apiVersionLineNum) {
-                const apiVersionLine = document.lineAt(apiVersionLineNum);
-                const lineText = apiVersionLine.text;
-                const commentIndex = lineText.indexOf('#');
-                const lineEnd = commentIndex >= 0 ? commentIndex : lineText.length;
-                
-                // Only show hover if cursor is on the apiVersion line (before comment if present)
-                if (position.character <= lineEnd) {
-                    const backRefHover = await this.provideBackReferenceHover(document);
-                    if (backRefHover) {
-                        return backRefHover;
-                    }
-                }
-            }
-            
             // Get the word at the cursor
             const wordRange = document.getWordRangeAtPosition(position);
             if (!wordRange) {
@@ -273,28 +256,4 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         }
     }
     
-    private async provideBackReferenceHover(document: vscode.TextDocument): Promise<vscode.Hover | null> {
-        // Get back references
-        const backRefs = this.parser.getBackReferencesForFile(document.fileName);
-        
-        if (!backRefs || backRefs.length === 0) {
-            return null;
-        }
-        
-        // Create markdown for hover
-        const hoverContent = new vscode.MarkdownString();
-        hoverContent.isTrusted = true;
-        hoverContent.supportHtml = true;
-        
-        hoverContent.appendMarkdown(`### Referenced by:\n\n`);
-        
-        backRefs.forEach(ref => {
-            const refUri = vscode.Uri.file(ref.path);
-            const refName = path.basename(path.dirname(ref.path)) + '/' + path.basename(ref.path);
-            hoverContent.appendMarkdown(`- [\`${refName}\`](${refUri.toString()})\n`);
-        });
-        
-        // Return hover at the top of the document
-        return new vscode.Hover(hoverContent, new vscode.Range(0, 0, 0, 0));
-    }
 }

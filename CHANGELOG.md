@@ -6,6 +6,20 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.8] - 2025-11-05
+
+### Fixed
+- **Path normalization for back references**: Improved path normalization to ensure back references work correctly when Flux kustomizations reference k8s kustomization.yaml files
+- Normalized Git root paths to handle different path formats from Git commands
+- Normalized all resolved paths (including directory-to-file resolution) for consistent back reference lookup
+- Proper handling of `./` prefix removal in Flux references
+- Directory references now correctly resolve to `kustomization.yaml`/`kustomization.yml` files with normalized paths
+- Case sensitivity preserved (important for Flux error detection)
+
+### Improved
+- All path resolution steps now use consistent normalization
+- Back reference lookup now works reliably for all reference types (Flux Git root relative vs K8s file relative)
+
 ## [0.9.7] - 2025-11-05
 
 ### Changed

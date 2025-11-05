@@ -4,7 +4,7 @@
 // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
 // NOTE: The version field below should be kept in sync with package.json version when bumping versions
 {
-	"version": "0.9.4",
+	"version": "0.9.8",
 	"configurations": [
 		{
 			"name": "Run Extension",

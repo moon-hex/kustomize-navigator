@@ -87,6 +87,7 @@ export class KustomizeParser {
     /**
      * Normalize a file path to ensure consistent lookup
      * Converts to absolute path and normalizes it
+     * Preserves case (important: Flux errors on case mismatches)
      */
     private normalizeFilePath(filePath: string): string {
         // If already absolute, normalize it
@@ -114,14 +115,17 @@ export class KustomizeParser {
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'ignore']
             });
-            const gitRoot = result.trim();
+            // Normalize the Git root path to ensure consistent path resolution
+            // Git might return paths with different separators or format than expected
+            const gitRoot = path.normalize(result.trim());
             this.gitRootCache.set(cacheKey, gitRoot);
             return gitRoot;
         } catch (error) {
             // Fallback to workspace root if git command fails
             console.warn(`Git command failed for ${filePath}, using workspace root`);
-            this.gitRootCache.set(cacheKey, this.workspaceRoot);
-            return this.workspaceRoot;
+            const normalizedWorkspaceRoot = path.normalize(this.workspaceRoot);
+            this.gitRootCache.set(cacheKey, normalizedWorkspaceRoot);
+            return normalizedWorkspaceRoot;
         }
     }
 
@@ -271,18 +275,25 @@ export class KustomizeParser {
         if (spec.path && typeof spec.path === 'string') {
             const resolvedPath = this.resolveReference(filePath, spec.path);
 
+            // Normalize the resolved path to ensure consistent path format
+            const normalizedResolvedPath = path.normalize(resolvedPath);
+            
             // Check if path points to directory with kustomization.yaml
-            if (this.isDirectory(resolvedPath)) {
-                const kustomizationYaml = path.join(resolvedPath, 'kustomization.yaml');
-                const kustomizationYml = path.join(resolvedPath, 'kustomization.yml');
+            if (this.isDirectory(normalizedResolvedPath)) {
+                const kustomizationYaml = path.join(normalizedResolvedPath, 'kustomization.yaml');
+                const kustomizationYml = path.join(normalizedResolvedPath, 'kustomization.yml');
 
-                if (this.fileExists(kustomizationYaml)) {
-                    references.push(kustomizationYaml);
-                } else if (this.fileExists(kustomizationYml)) {
-                    references.push(kustomizationYml);
+                // Normalize the kustomization file paths
+                const normalizedKustomizationYaml = path.normalize(kustomizationYaml);
+                const normalizedKustomizationYml = path.normalize(kustomizationYml);
+
+                if (this.fileExists(normalizedKustomizationYaml)) {
+                    references.push(normalizedKustomizationYaml);
+                } else if (this.fileExists(normalizedKustomizationYml)) {
+                    references.push(normalizedKustomizationYml);
                 }
-            } else if (this.fileExists(resolvedPath)) {
-                references.push(resolvedPath);
+            } else if (this.fileExists(normalizedResolvedPath)) {
+                references.push(normalizedResolvedPath);
             }
         }
 
@@ -351,16 +362,18 @@ export class KustomizeParser {
             const gitRoot = this.findGitRoot(basePath);
             // Handle relative paths properly
             if (path.isAbsolute(reference)) {
-                return reference;
+                return path.normalize(reference);
             } else {
                 // Remove leading "./" if present and resolve relative to git root
                 const cleanReference = reference.startsWith('./') ? reference.slice(2) : reference;
-                return path.resolve(gitRoot, cleanReference);
+                // path.resolve already normalizes, but ensure it's normalized
+                return path.normalize(path.resolve(gitRoot, cleanReference));
             }
         } else {
             // For standard kustomization files, resolve relative to file location
             const baseDir = path.dirname(basePath);
-            return path.resolve(baseDir, reference);
+            // path.resolve already normalizes, but ensure it's normalized
+            return path.normalize(path.resolve(baseDir, reference));
         }
     }
 

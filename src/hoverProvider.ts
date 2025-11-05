@@ -286,107 +286,13 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         hoverContent.isTrusted = true;
         hoverContent.supportHtml = true;
         
-        // Get document count for current file
-        const currentFileContent = document.getText();
-        const currentFileDocs = YamlUtils.parseMultipleYamlDocuments(currentFileContent);
-        const currentDocCount = currentFileDocs.length;
+        hoverContent.appendMarkdown(`### Referenced by:\n\n`);
         
-        hoverContent.appendMarkdown(`### File Information\n\n`);
-        hoverContent.appendMarkdown(`- Contains ${currentDocCount} YAML document${currentDocCount > 1 ? 's' : ''}\n\n`);
-        
-        // Separate Flux and K8s references
-        const fluxRefs = backRefs.filter(ref => ref.type === 'flux');
-        const k8sRefs = backRefs.filter(ref => ref.type === 'k8s');
-        
-        // Process Flux references
-        if (fluxRefs.length > 0) {
-            hoverContent.appendMarkdown(`### Referenced by ${fluxRefs.length} Flux Kustomization${fluxRefs.length > 1 ? 's' : ''}\n\n`);
-            
-            // Process each Flux reference to get document counts
-            const fluxRefDetails = await Promise.all(fluxRefs.map(async ref => {
-                const refUri = vscode.Uri.file(ref.path);
-                const refName = path.basename(path.dirname(ref.path)) + '/' + path.basename(ref.path);
-                
-                // Get document count for the referencing file
-                const refContent = await vscode.workspace.fs.readFile(refUri);
-                const refDocs = YamlUtils.parseMultipleYamlDocuments(refContent.toString());
-                const refDocCount = refDocs.length;
-                
-                // Get document types
-                const docTypes = new Set<string>();
-                refDocs.forEach(doc => {
-                    if (doc.kind) {
-                        docTypes.add(doc.kind);
-                    }
-                });
-                
-                return {
-                    uri: refUri,
-                    name: refName,
-                    docCount: refDocCount,
-                    docTypes: Array.from(docTypes)
-                };
-            }));
-            
-            // Sort Flux references by document count
-            fluxRefDetails.sort((a, b) => b.docCount - a.docCount);
-            
-            // Make each Flux reference clickable with document information
-            fluxRefDetails.forEach(ref => {
-                hoverContent.appendMarkdown(`- [\`${ref.name}\`](${ref.uri.toString()})`);
-                hoverContent.appendMarkdown(` (${ref.docCount} document${ref.docCount > 1 ? 's' : ''}`);
-                if (ref.docTypes.length > 0) {
-                    hoverContent.appendMarkdown(`, types: ${ref.docTypes.join(', ')}`);
-                }
-                hoverContent.appendMarkdown(')\n');
-            });
-            
-            hoverContent.appendMarkdown('\n');
-        }
-        
-        // Process K8s references
-        if (k8sRefs.length > 0) {
-            hoverContent.appendMarkdown(`### Referenced by ${k8sRefs.length} K8s Kustomization${k8sRefs.length > 1 ? 's' : ''}\n\n`);
-            
-            // Process each K8s reference to get document counts
-            const k8sRefDetails = await Promise.all(k8sRefs.map(async ref => {
-                const refUri = vscode.Uri.file(ref.path);
-                const refName = path.basename(path.dirname(ref.path)) + '/' + path.basename(ref.path);
-                
-                // Get document count for the referencing file
-                const refContent = await vscode.workspace.fs.readFile(refUri);
-                const refDocs = YamlUtils.parseMultipleYamlDocuments(refContent.toString());
-                const refDocCount = refDocs.length;
-                
-                // Get document types
-                const docTypes = new Set<string>();
-                refDocs.forEach(doc => {
-                    if (doc.kind) {
-                        docTypes.add(doc.kind);
-                    }
-                });
-                
-                return {
-                    uri: refUri,
-                    name: refName,
-                    docCount: refDocCount,
-                    docTypes: Array.from(docTypes)
-                };
-            }));
-            
-            // Sort K8s references by document count
-            k8sRefDetails.sort((a, b) => b.docCount - a.docCount);
-            
-            // Make each K8s reference clickable with document information
-            k8sRefDetails.forEach(ref => {
-                hoverContent.appendMarkdown(`- [\`${ref.name}\`](${ref.uri.toString()})`);
-                hoverContent.appendMarkdown(` (${ref.docCount} document${ref.docCount > 1 ? 's' : ''}`);
-                if (ref.docTypes.length > 0) {
-                    hoverContent.appendMarkdown(`, types: ${ref.docTypes.join(', ')}`);
-                }
-                hoverContent.appendMarkdown(')\n');
-            });
-        }
+        backRefs.forEach(ref => {
+            const refUri = vscode.Uri.file(ref.path);
+            const refName = path.basename(path.dirname(ref.path)) + '/' + path.basename(ref.path);
+            hoverContent.appendMarkdown(`- [\`${refName}\`](${refUri.toString()})\n`);
+        });
         
         // Return hover at the top of the document
         return new vscode.Hover(hoverContent, new vscode.Range(0, 0, 0, 0));

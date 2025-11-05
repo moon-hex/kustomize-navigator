@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate and manage Kustomize references in your Kubernetes manifests",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "icon": "images/vscode-extension-icon.png",
   "engines": {
     "vscode": ">=1.0.0"
@@ -16,46 +16,6 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
-    "views": {
-      "explorer": [
-        {
-          "id": "kustomizeReferences",
-          "name": "Kustomize Back References"
-        }
-      ]
-    },
-    "viewsWelcome": [
-      {
-        "view": "kustomizeReferences",
-        "contents": "No active file.\n[Open a YAML File](command:workbench.action.files.openFile)"
-      }
-    ],
-    "menus": {
-      "view/item/context": [
-        {
-          "command": "kustomizeNavigator.openFile",
-          "when": "view == kustomizeReferences && viewItem =~ /kustomization|resource/"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "kustomizeNavigator.refreshReferences",
-          "when": "view == kustomizeReferences",
-          "group": "navigation"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "kustomizeNavigator.openFile",
-        "title": "Open File"
-      },
-      {
-        "command": "kustomizeNavigator.refreshReferences",
-        "title": "Refresh References",
-        "icon": "$(refresh)"
-      }
-    ],
     "configuration": {
       "title": "Kustomize Navigator",
       "properties": {

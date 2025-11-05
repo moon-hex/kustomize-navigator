@@ -6,6 +6,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+## [0.9.9] - 2025-11-05
+
+### Changed
+- **Back reference display**: Simplified back reference display - removed text, now using underline decoration only
+- Badge colors preserved: `[Kustomize]` and `[Flux]` badges maintain their original green/red colors
+- Back reference information now only shown via hover (no inline text)
+- Underline decoration provides visual indicator when back references exist
+
+### Fixed
+- **Duplicate hover**: Fixed duplicate hover messages for back references (hover now appears only once)
+
 ## [0.9.8] - 2025-11-05
 
 ### Changed

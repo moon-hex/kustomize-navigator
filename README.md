@@ -75,6 +75,12 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 0.9.9
+- **Changed**: Simplified back reference display - removed inline text, now using underline decoration only
+- Badge colors preserved (`[Kustomize]` green, `[Flux]` red)
+- Back reference details shown via hover only
+- **Fixed**: Removed duplicate hover messages for back references
+
 ### 0.9.8
 - **Changed**: Back reference decorations now have underline styling (URL-like appearance) for better visibility
 - **Fixed**: Improved path normalization for back reference lookup when Flux kustomizations reference k8s kustomization.yaml files

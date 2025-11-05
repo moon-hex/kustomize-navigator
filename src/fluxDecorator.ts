@@ -102,8 +102,10 @@ export class FluxVariableDecorator {
         });
         
         // Back reference decoration with underline (URL-like appearance)
+        // Use link color - VS Code will use the default link color from theme
         this.backReferenceDecorationType = vscode.window.createTextEditorDecorationType({
-            textDecoration: 'underline'
+            textDecoration: 'underline',
+            color: new vscode.ThemeColor('textLink.foreground')
         });
     }
     
@@ -207,17 +209,10 @@ export class FluxVariableDecorator {
             const range = new vscode.Range(startPos, endPos);
             
             // Get back references for this file
-            let backRefText = '';
             let backRefHover: vscode.MarkdownString | undefined;
             if (this.parser) {
                 const backRefs = this.parser.getBackReferencesForFile(editor.document.fileName);
                 if (backRefs.length > 0) {
-                    if (backRefs.length === 1) {
-                        const refName = path.basename(path.dirname(backRefs[0].path)) + '/' + path.basename(backRefs[0].path);
-                        backRefText = ` [Referenced by: ${refName}]`;
-                    } else {
-                        backRefText = ` [Referenced by: ${backRefs.length} files]`;
-                    }
                     backRefHover = this.createBackReferenceHover(backRefs);
                 }
             }
@@ -231,7 +226,7 @@ export class FluxVariableDecorator {
                     range,
                     renderOptions: {
                         after: {
-                            contentText: ` [Kustomize]${backRefText}`,
+                            contentText: ' [Kustomize]',
                             color: kustomizeApiColor,
                             margin: '0 0 0 1em'
                         }
@@ -240,11 +235,10 @@ export class FluxVariableDecorator {
                 });
                 
                 // Add underline decoration extending to end of line for back references
-                if (backRefText) {
+                if (backRefHover) {
                     const lineEnd = editor.document.lineAt(range.start.line).range.end;
                     backReferenceDecorations.push({
-                        range: new vscode.Range(range.start, lineEnd),
-                        hoverMessage: backRefHover
+                        range: new vscode.Range(range.start, lineEnd)
                     });
                 }
             } else if (apiVersion.startsWith('kustomize.toolkit.fluxcd.io/')) {
@@ -255,7 +249,7 @@ export class FluxVariableDecorator {
                     range,
                     renderOptions: {
                         after: {
-                            contentText: ` [Flux]${backRefText}`,
+                            contentText: ' [Flux]',
                             color: fluxApiColor,
                             margin: '0 0 0 1em'
                         }
@@ -264,31 +258,15 @@ export class FluxVariableDecorator {
                 });
                 
                 // Add underline decoration extending to end of line for back references
-                if (backRefText) {
+                if (backRefHover) {
                     const lineEnd = editor.document.lineAt(range.start.line).range.end;
                     backReferenceDecorations.push({
-                        range: new vscode.Range(range.start, lineEnd),
-                        hoverMessage: backRefHover
+                        range: new vscode.Range(range.start, lineEnd)
                     });
                 }
-            } else if (backRefText) {
-                // For non-kustomization files with back references, add a decoration
-                const config = vscode.workspace.getConfiguration('kustomizeNavigator');
-                const backRefColor = config.get<string>('kustomizeApiColor', '#27ae60');
-                
-                kustomizeApiDecorations.push({
-                    range,
-                    renderOptions: {
-                        after: {
-                            contentText: backRefText,
-                            color: backRefColor,
-                            margin: '0 0 0 1em'
-                        }
-                    },
-                    hoverMessage: backRefHover
-                });
-                
-                // Add underline decoration extending to end of line for back references
+            } else if (backRefHover) {
+                // For non-kustomization files with back references, add underline only
+                // No badge, just visual indicator with hover
                 const lineEnd = editor.document.lineAt(range.start.line).range.end;
                 backReferenceDecorations.push({
                     range: new vscode.Range(range.start, lineEnd),

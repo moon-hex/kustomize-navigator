@@ -1,10 +1,21 @@
 # Change Log
 
-All notable changes to the "Kustomize Navigator" extension will be documented in this file.
+## [1.0.0] - 2025-11-19
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+### Release
+- **First stable release** of Kustomize Navigator
+- Full support for Kustomize and Flux CD navigation
+- Comprehensive patch format support (including deprecated formats for backward compatibility)
+- Smart back reference tracking and display
+- Performance optimizations with intelligent caching (50-95% I/O reduction)
+- Extensive diagnostic checks for Kubernetes and Flux configurations
+- File system operation caching with intelligent invalidation
+- Incremental reference map updates (10-100x faster for file changes)
 
-## [Unreleased]
+### Changed
+- VS Code engine requirement changed from "^1.99.0" to ">=1.0.0" for broader compatibility
+- Updated documentation with comprehensive feature descriptions
+- Enhanced build script with detailed comments
 
 ## [0.9.9] - 2025-11-05
 

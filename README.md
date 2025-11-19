@@ -75,99 +75,22 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
-### 1.0.0
-- **Release**: First stable release
-- Full support for Kustomize and Flux CD navigation
-- Comprehensive patch format support (including deprecated formats)
-- Smart back reference tracking and display
-- Performance optimizations with intelligent caching
-- Extensive diagnostic checks for Kubernetes and Flux configurations
+### 1.0.0 (2025-11-19)
+- **Release**: First stable release with full Kustomize and Flux CD support
+- Performance optimizations with intelligent caching (50-95% I/O reduction)
+- Comprehensive patch format support and diagnostic checks
+- VS Code engine requirement changed to ">=1.0.0" for broader compatibility
 
-### 0.9.9
-- **Changed**: Simplified back reference display - removed inline text, now using underline decoration only
+### 0.9.9 (2025-11-05)
+- Simplified back reference display with underline decoration only
 - Badge colors preserved (`[Kustomize]` green, `[Flux]` red)
-- Back reference details shown via hover only
-- **Fixed**: Removed duplicate hover messages for back references
+- Fixed duplicate hover messages for back references
 
-### 0.9.8
-- **Changed**: Back reference decorations now have underline styling (URL-like appearance) for better visibility
-- **Fixed**: Improved path normalization for back reference lookup when Flux kustomizations reference k8s kustomization.yaml files
-- Normalized Git root and all resolved paths for consistent back reference matching
-- Proper handling of `./` prefix and directory-to-file path resolution
-- **Improved**: Path normalization optimized - removed redundant operations, standardized on `normalizeFilePath()` method
+### 0.9.8 (2025-11-05)
+- Improved path normalization for back reference lookup
+- Enhanced back reference visibility with underline styling
 
-### 0.9.7
-- **Changed**: Back references now displayed inline on `apiVersion:` line as `[Referenced by: file.yaml]`
-- More discoverable: always visible in editor, not just on hover
-- Consistent with existing `[Kustomize]`/`[Flux]` badge pattern
-
-### 0.9.6
-- **Fixed**: Back references now work correctly for k8s kustomization.yaml files referenced by Flux kustomizations
-- Improved path normalization for consistent back reference lookup
-
-### 0.9.5
-- **Removed**: Side panel with back references (duplicated functionality)
-- **Simplified**: Back reference hover now shows only "Referenced by:" with clickable list
-- Removed document counts and document types from hover tooltips
-
-### 0.9.4
-- **Fixed**: Back reference links now correctly placed on first `apiVersion:` line (handles multi-YAML with `---`, comments, empty lines)
-- Link range extends to end of line or comment marker
-- Hover tooltip triggers on `apiVersion:` line
-
-### 0.9.3
-- **Performance**: Removed file system validation on cache access - 90-95% I/O reduction
-- Trust cache by default, rely on file watcher for invalidation
-- Mass change detection for git branch switches (>50 files in 1s → full cache clear)
-- Safety validation fallback for edge cases
-
-### 0.9.2
-- Added configuration option to enable/disable file system caching
-- `kustomizeNavigator.performance.enableFileSystemCache` setting (default: true)
-
-### 0.9.1
-- **Performance**: File system operation caching - 50-80% reduction in I/O operations
-- Intelligent cache invalidation using file modification times
-- All file existence and stat checks now use cached versions
-
-### 0.9.0
-- **Performance**: Incremental reference map updates - 10-100x faster for file changes
-- Smart file change detection and cascading dependency updates
-- Improved handling of file deletions and reference cleanup
-
-### 0.8.4
-- Fixed array element validation and improved regex pattern matching
-- Enhanced deprecation warning detection for multi-document YAML files
-- Improved type safety with strict equality checks
-
-### 0.8.3
-- Added deprecation warnings for `patchesStrategicMerge` and `patchesJson6902`
-- Added quick fix code action to transform deprecated fields to `patches` format
-- New configuration option to control deprecation warnings
-
-### 0.8.2
-- Enhanced patch format support: all combinations now support linking and highlighting
-- Improved reference detection for patch objects in YAML
-- Documentation updated with patch format recommendations and deprecation notices
-
-### 0.8.1
-- Improved handling of references for all YAML files
-- Enhanced display of Flux and K8s references
-- Better error handling and user feedback
-
-### 0.8.0
-- Create kustomization files by clicking links
-- Improved directory target handling
-- Better diagnostics for missing files
-
-### 0.7.2
-- Enhanced References View with document counts
-- Fixed back reference tracking
-- Improved path resolution
-
-### 0.7.1
-- Simplified References View
-- Updated UI and documentation
+For complete version history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Known Issues
 

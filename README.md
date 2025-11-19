@@ -75,6 +75,14 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.0.0
+- **Release**: First stable release
+- Full support for Kustomize and Flux CD navigation
+- Comprehensive patch format support (including deprecated formats)
+- Smart back reference tracking and display
+- Performance optimizations with intelligent caching
+- Extensive diagnostic checks for Kubernetes and Flux configurations
+
 ### 0.9.9
 - **Changed**: Simplified back reference display - removed inline text, now using underline decoration only
 - Badge colors preserved (`[Kustomize]` green, `[Flux]` red)
@@ -176,4 +184,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This extension is licensed under the [MIT License](LICENSE).
+This extension is licensed under the [Apache 2.0](LICENSE).

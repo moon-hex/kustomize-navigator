@@ -1,5 +1,22 @@
 # Change Log
 
+## [1.1.0] - 2026-03-25
+
+### Added
+- `build.ps1` aligned with Helm Values Navigator: dependency install (if needed), `npm run check-types`, production webpack (`npm run package`), `npx vsce package --out ./output`
+- `check-types` script (`tsc --noEmit`) and `tsconfig` `include`/`exclude` for the `src` tree
+
+### Changed
+- Bumped extension version to 1.1.0
+- `engines.vscode` set to `^1.85.0` (aligned with `@types/vscode`); `>=1.0.0` is rejected by `@vscode/vsce` when using current API typings
+- Runtime dependencies: `glob` ^10.4.5, `js-yaml` ^4.1.1 (same majors, no breaking API changes expected)
+- Dev dependencies: ESLint 9 + TypeScript-ESLint 8, TypeScript 5.8, webpack 5 + ts-loader, `@vscode/vsce`, `@vscode/test-cli`; removed `@types/glob` (inaccurate range and redundant with `glob` v10 bundled types)
+- README: link to [Helm Values Navigator](https://marketplace.visualstudio.com/items?itemName=MichalHajny.helm-values-navigator)
+
+### Fixed
+- Marketplace packaging: committed `images/vscode-extension-icon.png` (manifest referenced PNG but only SVG was present)
+- `.vscodeignore`: exclude `output/**`, `build.ps1`, `.cursorrules` so they are not shipped inside the VSIX
+
 ## [1.0.0] - 2025-11-19
 
 ### Release

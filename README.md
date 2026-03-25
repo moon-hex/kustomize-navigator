@@ -2,6 +2,8 @@
 
 A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by providing intelligent navigation between Kustomize YAML files.
 
+**See also:** [Helm Values Navigator](https://marketplace.visualstudio.com/items?itemName=MichalHajny.helm-values-navigator) — hover and go-to-definition for Helm `.Values` references, completions, and orphan diagnostics across environments.
+
 ## Features
 
 - **Smart Navigation**: Ctrl+click to navigate between Kustomize files
@@ -75,11 +77,18 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.1.0 (2026-03-25)
+- **Build**: `build.ps1` runs type-check, production webpack, and `vsce package` (`.vsix` in `./output`)
+- **Dependencies**: safe patch/minor updates (`glob`, `js-yaml`, dev tooling); removed obsolete `@types/glob` (types ship with `glob` v10+)
+- **VS Code**: `engines.vscode` is `^1.85.0` so `@vscode/vsce` matches `@types/vscode` (the old `>=1.0.0` range is rejected by vsce with current typings)
+- **Packaging**: extension icon as `images/vscode-extension-icon.png`; `.vscodeignore` excludes dev-only paths from the VSIX
+- **Docs**: link to Helm Values Navigator in the intro
+
 ### 1.0.0 (2025-11-19)
 - **Release**: First stable release with full Kustomize and Flux CD support
 - Performance optimizations with intelligent caching (50-95% I/O reduction)
 - Comprehensive patch format support and diagnostic checks
-- VS Code engine requirement changed to ">=1.0.0" for broader compatibility
+- VS Code engine requirement was `>=1.0.0` for broader compatibility (raised to `^1.85.0` in 1.1.0 for vsce/types alignment)
 
 ### 0.9.9 (2025-11-05)
 - Simplified back reference display with underline decoration only
@@ -100,6 +109,10 @@ For complete version history, see [CHANGELOG.md](CHANGELOG.md).
 ## Performance
 
 For details on performance optimizations, caching strategies, and implementation principles, see [PERFORMANCE.md](PERFORMANCE.md).
+
+## Building and packaging
+
+From the repo root (PowerShell): `.\build.ps1` installs dependencies if needed, runs `tsc --noEmit`, production webpack, and produces `output\kustomize-navigator-<version>.vsix`.
 
 ## Contributing
 

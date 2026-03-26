@@ -1,15 +1,23 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { KustomizeParser } from './kustomizeParser';
 import { YamlUtils } from './yamlUtils';
+import { FluxResourceIndex } from './fluxResourceIndex';
+import {
+    findSourceRefNameIndex,
+    findChartRefNameIndex,
+    findArtifactGeneratorSourceNameIndex,
+} from './fluxYamlRefs';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
     private gitRootCache = new Map<string, string>();
 
-    constructor(private parser: KustomizeParser) {
+    constructor(
+        private parser: KustomizeParser,
+        private fluxResourceIndex: FluxResourceIndex
+    ) {
         // Create a diagnostic collection for this provider
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('kustomize-navigator');
     }
@@ -49,6 +57,10 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
                 if (isFluxKustomization) {
                     await this.processFluxKustomizationReferences(document, content, links, diagnostics);
+                } else if (this.isFluxHelmReleaseDocument(content)) {
+                    this.processHelmReleaseChartRef(document, content, links);
+                } else if (this.isFluxArtifactGeneratorDocument(content)) {
+                    this.processArtifactGeneratorSources(document, content, links);
                 } else if (isStandardKustomization) {
                     await this.processKustomizationReferences(document, content, links, diagnostics);
                 }
@@ -127,6 +139,124 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 }
             }
         }
+
+        const docText = document.getText();
+        const defNs = typeof content.metadata?.namespace === 'string' ? content.metadata.namespace : '';
+        const sr = spec.sourceRef;
+        if (sr && typeof sr.kind === 'string' && typeof sr.name === 'string') {
+            const refNs = typeof sr.namespace === 'string' ? sr.namespace : undefined;
+            this.addFluxCrLink(
+                document,
+                docText,
+                sr.kind,
+                sr.name,
+                refNs,
+                defNs,
+                findSourceRefNameIndex,
+                links,
+                'Open Flux source'
+            );
+        }
+    }
+
+    private isFluxHelmReleaseDocument(content: any): boolean {
+        return (
+            content?.kind === 'HelmRelease' &&
+            typeof content.apiVersion === 'string' &&
+            content.apiVersion.startsWith('helm.toolkit.fluxcd.io/')
+        );
+    }
+
+    private isFluxArtifactGeneratorDocument(content: any): boolean {
+        return (
+            content?.kind === 'ArtifactGenerator' &&
+            typeof content.apiVersion === 'string' &&
+            content.apiVersion.includes('source.extensions.fluxcd.io')
+        );
+    }
+
+    private processHelmReleaseChartRef(
+        document: vscode.TextDocument,
+        content: any,
+        links: vscode.DocumentLink[]
+    ): void {
+        const spec = content.spec;
+        if (!spec?.chartRef || typeof spec.chartRef.kind !== 'string' || typeof spec.chartRef.name !== 'string') {
+            return;
+        }
+        const defNs = typeof content.metadata?.namespace === 'string' ? content.metadata.namespace : '';
+        const cr = spec.chartRef;
+        const refNs = typeof cr.namespace === 'string' ? cr.namespace : undefined;
+        this.addFluxCrLink(
+            document,
+            document.getText(),
+            cr.kind,
+            cr.name,
+            refNs,
+            defNs,
+            findChartRefNameIndex,
+            links,
+            'Open chart source'
+        );
+    }
+
+    private processArtifactGeneratorSources(
+        document: vscode.TextDocument,
+        content: any,
+        links: vscode.DocumentLink[]
+    ): void {
+        const spec = content.spec;
+        if (!spec || !Array.isArray(spec.sources)) {
+            return;
+        }
+        const defNs = typeof content.metadata?.namespace === 'string' ? content.metadata.namespace : '';
+        const docText = document.getText();
+        for (const s of spec.sources) {
+            if (!s || typeof s.kind !== 'string' || typeof s.name !== 'string') {
+                continue;
+            }
+            const refNs = typeof s.namespace === 'string' ? s.namespace : undefined;
+            this.addFluxCrLink(
+                document,
+                docText,
+                s.kind,
+                s.name,
+                refNs,
+                defNs,
+                findArtifactGeneratorSourceNameIndex,
+                links,
+                'Open generator source'
+            );
+        }
+    }
+
+    /**
+     * Ctrl+click on Flux sourceRef / chartRef / ArtifactGenerator source → YAML manifest in the workspace (if indexed).
+     */
+    private addFluxCrLink(
+        document: vscode.TextDocument,
+        text: string,
+        refKind: string,
+        refName: string,
+        refNamespace: string | undefined,
+        defaultNamespace: string,
+        findNameIndex: (t: string, k: string, n: string) => number,
+        links: vscode.DocumentLink[],
+        tooltipVerb: string
+    ): void {
+        const target = this.fluxResourceIndex.lookup(refKind, refName, refNamespace, defaultNamespace);
+        if (!target) {
+            return;
+        }
+        const idx = findNameIndex(text, refKind, refName);
+        if (idx < 0) {
+            return;
+        }
+        const start = document.positionAt(idx);
+        const end = document.positionAt(idx + refName.length);
+        const link = new vscode.DocumentLink(new vscode.Range(start, end), target);
+        link.tooltip = `${tooltipVerb}: ${refKind}/${refName}`;
+        links.push(link);
     }
 
     /**

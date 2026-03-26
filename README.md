@@ -9,6 +9,7 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 - **Smart Navigation**: Ctrl+click to navigate between Kustomize files
 - **Back References**: View which files reference the current file (hover on `apiVersion:` line)
 - **Flux Support**: Works with both standard Kustomize and Flux CD
+- **Flux cross-manifest links**: Ctrl+click `sourceRef` / `chartRef` / `ArtifactGenerator` `sources` entries to open the matching YAML in the repo (indexed by `kind` + `metadata.name` + namespace)
 - **Variable Highlighting**: Highlights and validates Flux variable substitutions
 - **Intelligent Diagnostics**: Identifies common configuration issues
 - **Comprehensive Patch Support**: Full linking and highlighting for all patch formats (including deprecated ones for backward compatibility)
@@ -77,6 +78,9 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.2.0 (2026-03-26)
+- **Flux cross-resource navigation**: links from `Kustomization.spec.sourceRef`, `HelmRelease.spec.chartRef`, and `ArtifactGenerator.spec.sources[]` to other manifests in the workspace when `kind` / `name` / namespace match ([Artifact generators](https://fluxcd.io/flux/components/source/artifactgenerators/))
+
 ### 1.1.0 (2026-03-25)
 - **Build**: `build.ps1` runs type-check, production webpack, and `vsce package` (`.vsix` in `./output`)
 - **Dependencies**: safe patch/minor updates (`glob`, `js-yaml`, dev tooling); removed obsolete `@types/glob` (types ship with `glob` v10+)
@@ -105,6 +109,7 @@ For complete version history, see [CHANGELOG.md](CHANGELOG.md).
 
 - Remote Git references not supported
 - May activate on YAML files without kustomization files
+- Flux cross-manifest links only work when the target resource exists as YAML in the workspace; if `metadata.namespace` is omitted on a reference, the referring object’s namespace is assumed (Flux convention). If the same `kind` + `name` exists in multiple namespaces and the reference is ambiguous, the link may not appear
 
 ## Performance
 

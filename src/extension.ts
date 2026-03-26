@@ -40,7 +40,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await fileWatcher.initialize();
     
     // Register link provider
-    const linkProvider = new KustomizeLinkProvider(fileWatcher.getParser());
+    const linkProvider = new KustomizeLinkProvider(fileWatcher.getParser(), fileWatcher.getFluxResourceIndex());
     const linkProviderDisposable = vscode.languages.registerDocumentLinkProvider(
         { language: 'yaml' },
         linkProvider

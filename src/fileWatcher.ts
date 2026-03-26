@@ -1,12 +1,15 @@
 import * as vscode from 'vscode';
 import { KustomizeParser } from './kustomizeParser';
+import { FluxResourceIndex } from './fluxResourceIndex';
 
 export class KustomizeFileWatcher {
     private kustomizationFileWatcher: vscode.FileSystemWatcher | undefined;
     private allYamlFileWatcher: vscode.FileSystemWatcher | undefined;
     private parser: KustomizeParser;
+    private fluxResourceIndex: FluxResourceIndex;
     // For debouncing
     private scanTimeout: NodeJS.Timeout | undefined = undefined;
+    private fluxIndexTimeout: NodeJS.Timeout | undefined = undefined;
     private readonly debounceDelay = 500; // ms
     
     // Mass change detection (e.g., git branch switch)
@@ -17,11 +20,13 @@ export class KustomizeFileWatcher {
 
     constructor(workspaceRoot: string, enableFileSystemCache: boolean = true) {
         this.parser = new KustomizeParser(workspaceRoot, enableFileSystemCache);
+        this.fluxResourceIndex = new FluxResourceIndex(workspaceRoot);
     }
 
     public async initialize(): Promise<void> {
         // Initial parsing of all kustomization files
         await this.parser.buildReferenceMap();
+        await this.fluxResourceIndex.rebuildFull();
 
         // Set up file watcher for standard kustomization files
         this.kustomizationFileWatcher = vscode.workspace.createFileSystemWatcher(
@@ -87,9 +92,10 @@ export class KustomizeFileWatcher {
             return;
         }
 
-        // Check if this could be a Flux Kustomization CR
         if (this.parser.isFluxKustomizationFile(uri.fsPath)) {
             this.handleFileChange(uri.fsPath);
+        } else {
+            this.debouncedFluxIndexOnly(uri.fsPath);
         }
     }
 
@@ -112,7 +118,17 @@ export class KustomizeFileWatcher {
             clearTimeout(this.scanTimeout);
         }
         this.scanTimeout = setTimeout(() => {
-            this.updateFileReferences(filePath);
+            void this.updateFileReferences(filePath);
+        }, this.debounceDelay);
+    }
+
+    /** Update Flux CR index only (other YAML files are not tracked by the kustomize reference map). */
+    private debouncedFluxIndexOnly(filePath: string): void {
+        if (this.fluxIndexTimeout) {
+            clearTimeout(this.fluxIndexTimeout);
+        }
+        this.fluxIndexTimeout = setTimeout(() => {
+            this.fluxResourceIndex.updateFile(filePath);
         }, this.debounceDelay);
     }
 
@@ -126,19 +142,24 @@ export class KustomizeFileWatcher {
     }
 
     private async updateReferences(): Promise<void> {
-        // Use full rebuild for now - will be called with specific file path in incremental version
         await this.parser.buildReferenceMap();
+        await this.fluxResourceIndex.rebuildFull();
     }
 
     /**
      * Update references incrementally for a specific file
      */
     public async updateFileReferences(filePath: string): Promise<void> {
+        this.fluxResourceIndex.updateFile(filePath);
         await this.parser.updateFileReferencesIncremental(filePath);
     }
 
     public getParser(): KustomizeParser {
         return this.parser;
+    }
+
+    public getFluxResourceIndex(): FluxResourceIndex {
+        return this.fluxResourceIndex;
     }
 
     public dispose(): void {
@@ -150,6 +171,9 @@ export class KustomizeFileWatcher {
         }
         if (this.scanTimeout) {
             clearTimeout(this.scanTimeout);
+        }
+        if (this.fluxIndexTimeout) {
+            clearTimeout(this.fluxIndexTimeout);
         }
         if (this.cleanupInterval) {
             clearInterval(this.cleanupInterval);

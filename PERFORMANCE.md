@@ -122,6 +122,14 @@ Caching can be disabled via VS Code settings:
 4. **Safety net**: Validate individual entries when operations fail
 5. **Monitor performance**: Track cache hit rates if needed
 
+### Flux resource index (cross-manifest links)
+
+For Ctrl+click navigation from `sourceRef`, `chartRef`, and `ArtifactGenerator` sources:
+
+- **Initial build**: one glob of all `*.yaml` / `*.yml` under the workspace (excluding `node_modules`), parsing multi-document files to record `kind`, `metadata.namespace`, and `metadata.name`.
+- **Incremental updates**: when a non–`kustomization.*` YAML file changes, only that file is re-indexed; kustomization / Flux Kustomization paths use the existing debounced pipeline, which also runs `updateFile` on the Flux index for the touched file.
+- **Full rebuild**: runs together with the kustomize reference map on mass-change detection (>50 files in 1s) and on the initial `initialize()` path.
+
 ### Future Improvements
 
 Potential enhancements:

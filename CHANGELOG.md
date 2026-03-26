@@ -1,5 +1,15 @@
 # Change Log
 
+## [1.2.0] - 2026-03-26
+
+### Added
+- **Flux cross-resource links** (workspace index by `kind` + `metadata.namespace` + `metadata.name`):
+  - `Kustomization.spec.sourceRef` → manifest for `GitRepository`, `OCIRepository`, `Bucket`, `HelmChart`, `ExternalArtifact`, etc.
+  - `HelmRelease.spec.chartRef` (Helm controller v2 style) → chart source manifest
+  - `ArtifactGenerator.spec.sources[]` ([Flux artifact generators](https://fluxcd.io/flux/components/source/artifactgenerators/)) → each listed source
+- Incremental rebuild of the Flux resource index on YAML changes (full rebuild with the kustomize reference map on mass updates)
+- Unit tests for YAML offset helpers (`fluxYamlRefs`)
+
 ## [1.1.0] - 2026-03-25
 
 ### Added

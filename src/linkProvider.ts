@@ -10,6 +10,7 @@ import {
     findArtifactGeneratorSourceNameIndex,
 } from './fluxYamlRefs';
 import { platformNeedsPathCaseValidation, validateResolvedPathCase } from './pathCaseValidation';
+import { fluxKustomizationPathsUseWorkspaceGitRepo } from './fluxGitSource';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
@@ -107,6 +108,21 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         }
 
         const spec = content.spec;
+        const defNs = typeof content.metadata?.namespace === 'string' ? content.metadata.namespace : '';
+        const sr = spec.sourceRef;
+        const fluxPathLinksUseWorkspaceGit = (() => {
+            if (!sr || typeof sr.kind !== 'string' || typeof sr.name !== 'string') {
+                return false;
+            }
+            const refNs = typeof sr.namespace === 'string' ? sr.namespace : undefined;
+            const sourceUri = this.fluxResourceIndex.lookup(sr.kind, sr.name, refNs, defNs);
+            return fluxKustomizationPathsUseWorkspaceGitRepo({
+                sourceRefKind: sr.kind,
+                gitRepositoryYamlPath: sourceUri?.fsPath,
+                documentFilePath: document.fileName,
+                gitRootResolver: (fp) => this.findGitRoot(fp),
+            });
+        })();
 
         // Process spec.path - THIS IS THE KEY FIX
         if (spec.path && typeof spec.path === 'string') {
@@ -116,7 +132,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 spec.path,
                 links,
                 diagnostics,
-                validatePathCase
+                validatePathCase,
+                fluxPathLinksUseWorkspaceGit
             );
         }
 
@@ -134,7 +151,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                         patch,
                         links,
                         diagnostics,
-                        validatePathCase
+                        validatePathCase,
+                        fluxPathLinksUseWorkspaceGit
                     );
                 } else if (typeof patch === 'object' && patch.path) {
                     // Object format with path: patches: [{path: patch.yaml, target: {...}}]
@@ -144,7 +162,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                         patch.path,
                         links,
                         diagnostics,
-                        validatePathCase
+                        validatePathCase,
+                        fluxPathLinksUseWorkspaceGit
                     );
                 }
                 // Inline patches (with patch field but no path) don't need linking
@@ -161,7 +180,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                         patch,
                         links,
                         diagnostics,
-                        validatePathCase
+                        validatePathCase,
+                        fluxPathLinksUseWorkspaceGit
                     );
                 }
             }
@@ -177,7 +197,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                         patch.path,
                         links,
                         diagnostics,
-                        validatePathCase
+                        validatePathCase,
+                        fluxPathLinksUseWorkspaceGit
                     );
                 }
             }
@@ -193,15 +214,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                         component,
                         links,
                         diagnostics,
-                        validatePathCase
+                        validatePathCase,
+                        fluxPathLinksUseWorkspaceGit
                     );
                 }
             }
         }
 
         const docText = document.getText();
-        const defNs = typeof content.metadata?.namespace === 'string' ? content.metadata.namespace : '';
-        const sr = spec.sourceRef;
         if (sr && typeof sr.kind === 'string' && typeof sr.name === 'string') {
             const refNs = typeof sr.namespace === 'string' ? sr.namespace : undefined;
             this.addFluxCrLink(
@@ -418,7 +438,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         reference: string,
         links: vscode.DocumentLink[],
         diagnostics: vscode.Diagnostic[],
-        validatePathCase: boolean
+        validatePathCase: boolean,
+        fluxPathLinksUseWorkspaceGit: boolean
     ): Promise<void> {
 
         try {
@@ -437,6 +458,11 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 const docLink = new vscode.DocumentLink(range, vscode.Uri.parse(reference));
                 docLink.tooltip = `Open remote resource: ${reference}`;
                 links.push(docLink);
+                return;
+            }
+
+            if (!fluxPathLinksUseWorkspaceGit) {
+                // Paths are relative to Flux source (foreign repo, OCI, etc.) — do not map to this workspace
                 return;
             }
 

@@ -79,6 +79,9 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.5.0 (2026-04-12)
+- **Flux foreign GitRepository**: `spec.path` / patch / component links open as local files only when `sourceRef` is a `GitRepository` and its `spec.url` matches this repo’s `origin` (same clone). Otherwise local links are omitted so paths are not resolved under the wrong tree. Remote `https://` / `oci://` / … links unchanged.
+
 ### 1.4.2 (2026-04-12)
 - **Remote URI detection**: any `scheme://` reference (e.g. `oci://`, `ssh://`) and `git::https://…` are handled like `https://`; `file://` is turned into a real filesystem path for the reference map
 
@@ -123,9 +126,15 @@ For complete version history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Known Issues
 
-- Remote Git references not supported
+- **Flux paths vs Git source (1.5.0)**: Local Ctrl+click targets for `spec.path` / patches / `components` are only enabled when `spec.sourceRef` points at a **GitRepository** whose `spec.url` matches **`git remote get-url origin`** for the git root of the file you have open. If you use a **foreign** `GitRepository`, **OCIRepository**, **Bucket**, etc., those paths are intentionally **not** linked as workspace files (they would be wrong). Remote URI strings (`https://`, `oci://`, …) still open as links. **Back-references, hovers, and the reference graph** may still assume workspace-relative layout for Flux kustomizations in some cases.
 - May activate on YAML files without kustomization files
 - Flux cross-manifest links only work when the target resource exists as YAML in the workspace; if `metadata.namespace` is omitted on a reference, the referring object’s namespace is assumed (Flux convention). If the same `kind` + `name` exists in multiple namespaces and the reference is ambiguous, the link may not appear
+
+## Plans
+
+- **Multi-root / second clone**: If another workspace folder is a git checkout whose `origin` matches the `GitRepository.spec.url`, resolve Flux paths there (open correct local files).
+- **Forge links**: When the source is foreign, optional “open on GitHub/GitLab” `tree/` links using `spec.url` + `spec.ref` + path.
+- **Parser / back-refs**: Align `getFluxResolvedReferences` and related graph logic with the same source-repo rules as document links.
 
 ## Performance
 

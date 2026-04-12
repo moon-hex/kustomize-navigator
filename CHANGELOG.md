@@ -1,5 +1,12 @@
 # Change Log
 
+## [1.3.0] - 2026-04-12
+
+### Added
+- Path case validation for document links on Windows and macOS: diagnostic when YAML path spelling does not match on-disk names (would work locally but fail on case-sensitive Linux / Flux checkout). Combines `fs.realpathSync.native` with a `readdir` walk from the Git root (Flux), volume root (absolute Flux paths), or kustomization directory (standard Kustomize).
+- Setting `kustomizeNavigator.validateReferencePathCase` (default: true) to disable the check if needed.
+- Unit tests for path case helpers (`pathCaseValidation.test.ts`).
+
 ## [1.2.0] - 2026-03-26
 
 ### Added

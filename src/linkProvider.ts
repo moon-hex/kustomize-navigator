@@ -9,6 +9,7 @@ import {
     findChartRefNameIndex,
     findArtifactGeneratorSourceNameIndex,
 } from './fluxYamlRefs';
+import { validateResolvedPathCase } from './pathCaseValidation';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
@@ -29,6 +30,9 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         const text = document.getText();
         const links: vscode.DocumentLink[] = [];
         const diagnostics: vscode.Diagnostic[] = [];
+        const validatePathCase = vscode.workspace
+            .getConfiguration('kustomizeNavigator')
+            .get<boolean>('validateReferencePathCase', true);
 
         // Only process YAML files
         if (!document.fileName.endsWith('.yaml') && !document.fileName.endsWith('.yml')) {
@@ -56,13 +60,25 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                     YamlUtils.isStandardKustomizationDocument(content);
 
                 if (isFluxKustomization) {
-                    await this.processFluxKustomizationReferences(document, content, links, diagnostics);
+                    await this.processFluxKustomizationReferences(
+                        document,
+                        content,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 } else if (this.isFluxHelmReleaseDocument(content)) {
                     this.processHelmReleaseChartRef(document, content, links);
                 } else if (this.isFluxArtifactGeneratorDocument(content)) {
                     this.processArtifactGeneratorSources(document, content, links);
                 } else if (isStandardKustomization) {
-                    await this.processKustomizationReferences(document, content, links, diagnostics);
+                    await this.processKustomizationReferences(
+                        document,
+                        content,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
             }
 
@@ -83,7 +99,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         document: vscode.TextDocument,
         content: any,
         links: vscode.DocumentLink[],
-        diagnostics: vscode.Diagnostic[]
+        diagnostics: vscode.Diagnostic[],
+        validatePathCase: boolean
     ): Promise<void> {
         if (!content.spec) {
             return;
@@ -93,7 +110,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
         // Process spec.path - THIS IS THE KEY FIX
         if (spec.path && typeof spec.path === 'string') {
-            await this.addFluxLinkForReference(document, 'path', spec.path, links, diagnostics);
+            await this.addFluxLinkForReference(
+                document,
+                'path',
+                spec.path,
+                links,
+                diagnostics,
+                validatePathCase
+            );
         }
 
         // Process patches - supports string format, object with path, and inline patches
@@ -104,10 +128,24 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 }
                 if (typeof patch === 'string') {
                     // String format: patches: [patch.yaml]
-                    await this.addFluxLinkForReference(document, 'patches', patch, links, diagnostics);
+                    await this.addFluxLinkForReference(
+                        document,
+                        'patches',
+                        patch,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 } else if (typeof patch === 'object' && patch.path) {
                     // Object format with path: patches: [{path: patch.yaml, target: {...}}]
-                    await this.addFluxLinkForReference(document, 'patches', patch.path, links, diagnostics);
+                    await this.addFluxLinkForReference(
+                        document,
+                        'patches',
+                        patch.path,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
                 // Inline patches (with patch field but no path) don't need linking
             }
@@ -117,7 +155,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         if (Array.isArray(spec.patchesStrategicMerge)) {
             for (const patch of spec.patchesStrategicMerge) {
                 if (patch !== null && patch !== undefined && typeof patch === 'string') {
-                    await this.addFluxLinkForReference(document, 'patchesStrategicMerge', patch, links, diagnostics);
+                    await this.addFluxLinkForReference(
+                        document,
+                        'patchesStrategicMerge',
+                        patch,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
             }
         }
@@ -126,7 +171,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         if (Array.isArray(spec.patchesJson6902)) {
             for (const patch of spec.patchesJson6902) {
                 if (patch !== null && patch !== undefined && typeof patch === 'object' && patch.path) {
-                    await this.addFluxLinkForReference(document, 'patchesJson6902', patch.path, links, diagnostics);
+                    await this.addFluxLinkForReference(
+                        document,
+                        'patchesJson6902',
+                        patch.path,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
             }
         }
@@ -135,7 +187,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         if (Array.isArray(spec.components)) {
             for (const component of spec.components) {
                 if (component !== null && component !== undefined && typeof component === 'string') {
-                    await this.addFluxLinkForReference(document, 'components', component, links, diagnostics);
+                    await this.addFluxLinkForReference(
+                        document,
+                        'components',
+                        component,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
             }
         }
@@ -266,7 +325,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         document: vscode.TextDocument,
         content: any,
         links: vscode.DocumentLink[],
-        diagnostics: vscode.Diagnostic[]
+        diagnostics: vscode.Diagnostic[],
+        validatePathCase: boolean
     ): Promise<void> {
         const baseDir = path.dirname(document.fileName);
 
@@ -286,7 +346,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             if (Array.isArray(content[field])) {
                 for (const reference of content[field]) {
                     if (reference !== null && reference !== undefined && typeof reference === 'string') {
-                        await this.addStandardLinkForReference(document, reference, baseDir, links, diagnostics);
+                        await this.addStandardLinkForReference(
+                            document,
+                            reference,
+                            baseDir,
+                            links,
+                            diagnostics,
+                            validatePathCase
+                        );
                     }
                 }
             }
@@ -300,10 +367,24 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 }
                 if (typeof patch === 'string') {
                     // String format: patches: [patch.yaml]
-                    await this.addStandardLinkForReference(document, patch, baseDir, links, diagnostics);
+                    await this.addStandardLinkForReference(
+                        document,
+                        patch,
+                        baseDir,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 } else if (typeof patch === 'object' && patch.path) {
                     // Object format with path: patches: [{path: patch.yaml, target: {...}}]
-                    await this.addStandardLinkForReference(document, patch.path, baseDir, links, diagnostics);
+                    await this.addStandardLinkForReference(
+                        document,
+                        patch.path,
+                        baseDir,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
                 // Inline patches (with patch field but no path) don't need linking
             }
@@ -313,7 +394,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         if (Array.isArray(content.patchesJson6902)) {
             for (const patch of content.patchesJson6902) {
                 if (patch !== null && patch !== undefined && typeof patch === 'object' && patch.path) {
-                    await this.addStandardLinkForReference(document, patch.path, baseDir, links, diagnostics);
+                    await this.addStandardLinkForReference(
+                        document,
+                        patch.path,
+                        baseDir,
+                        links,
+                        diagnostics,
+                        validatePathCase
+                    );
                 }
             }
         }
@@ -329,7 +417,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         fieldName: string,
         reference: string,
         links: vscode.DocumentLink[],
-        diagnostics: vscode.Diagnostic[]
+        diagnostics: vscode.Diagnostic[],
+        validatePathCase: boolean
     ): Promise<void> {
 
         try {
@@ -355,6 +444,9 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 resolvedPath = path.resolve(gitRoot, cleanReference);
             }
 
+            const pathCaseAnchor = path.isAbsolute(reference)
+                ? path.parse(path.resolve(resolvedPath)).root || path.sep
+                : gitRoot;
 
             // Create position and range for the link
             const pos = document.positionAt(referenceIndex);
@@ -422,6 +514,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 );
                 diagnostic.source = 'Flux Kustomize Navigator';
                 diagnostics.push(diagnostic);
+            } else if (validatePathCase && !validateResolvedPathCase(pathCaseAnchor, targetPath)) {
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    `Path casing does not match the filesystem (works on this OS but fails on Linux / Flux): ${reference}`,
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Flux Kustomize Navigator';
+                diagnostics.push(diagnostic);
             }
 
         } catch (error) {
@@ -437,7 +537,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         reference: string,
         baseDir: string,
         links: vscode.DocumentLink[],
-        diagnostics: vscode.Diagnostic[]
+        diagnostics: vscode.Diagnostic[],
+        validatePathCase: boolean
     ): Promise<void> {
 
         try {
@@ -507,6 +608,14 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 const diagnostic = new vscode.Diagnostic(
                     range,
                     errorMessage,
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diagnostic.source = 'Kustomize Navigator';
+                diagnostics.push(diagnostic);
+            } else if (validatePathCase && !validateResolvedPathCase(baseDir, resolvedPath)) {
+                const diagnostic = new vscode.Diagnostic(
+                    range,
+                    `Path casing does not match the filesystem (works on this OS but fails on Linux / Flux): ${reference}`,
                     vscode.DiagnosticSeverity.Warning
                 );
                 diagnostic.source = 'Kustomize Navigator';

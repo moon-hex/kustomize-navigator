@@ -430,8 +430,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 return;
             }
 
-            // HTTP URLs — create a real web link instead of mangling into file:///https:/...
-            if (YamlUtils.isHttpUrl(reference)) {
+            // Remote URIs (https://, oci://, …) — web link, not file:///… mangling
+            if (YamlUtils.isRemoteResourceUri(reference)) {
                 const pos = document.positionAt(referenceIndex);
                 const range = new vscode.Range(pos, pos.translate(0, reference.length));
                 const docLink = new vscode.DocumentLink(range, vscode.Uri.parse(reference));
@@ -560,8 +560,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 return;
             }
 
-            // HTTP URLs — create a real web link instead of mangling into file:///https:/...
-            if (YamlUtils.isHttpUrl(reference)) {
+            // Remote URIs (https://, oci://, …) — web link, not file:///… mangling
+            if (YamlUtils.isRemoteResourceUri(reference)) {
                 const pos = document.positionAt(referenceIndex);
                 const range = new vscode.Range(pos, pos.translate(0, reference.length));
                 const docLink = new vscode.DocumentLink(range, vscode.Uri.parse(reference));

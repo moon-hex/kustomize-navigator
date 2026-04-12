@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.4.2] - 2026-04-12
+
+### Changed
+- **Remote references**: `YamlUtils.isRemoteResourceUri()` generalizes the old `http(s)://` check to any `scheme://` URI (e.g. `oci://`, `ssh://`), plus Terraform-style `git::https://…`. **`file://` is excluded** and is normalized to a local path via `fileURLToPath` in `resolveReference` so it can still join the reference map when the target exists.
+- Document links, hovers, parser skips, and Flux path/patch handling use `isRemoteResourceUri`.
+
 ## [1.4.1] - 2026-04-12
 
 ### Added
@@ -8,7 +14,7 @@
 - Flux `spec.components` entries resolve into the local reference map when they point at existing paths (HTTP(S) skipped).
 
 ### Changed
-- **Hovers**: word-match includes `crds`, `generators`, `transformers`, and `patchesJson6902` paths; hovering an `http(s)://` reference shows a direct remote link; nested kustomization hovers list components, configurations, CRDs, generators, and transformers with the same file vs URL link rules as resources.
+- **Hovers**: word-match includes `crds`, `generators`, `transformers`, and `patchesJson6902` paths; hovering a remote URI shows a direct link; nested kustomization hovers list components, configurations, CRDs, generators, and transformers with the same file vs URL link rules as resources.
 
 ## [1.4.0] - 2026-04-12
 
@@ -16,7 +22,7 @@
 - **HTTP(S) remote references** in Kustomize and Flux YAML: `http://` and `https://` entries in `resources`, `bases`, `patches`, and related lists are opened as real web links in the editor instead of broken `file://` URLs derived from the URL string.
 - Reference map and Flux resolved references skip remote HTTP(S) paths (they are not workspace files).
 - Hovers link remote `resources`, `bases`, `patches` (including JSON6902 `path`), and Flux patch entries appropriately when the value is an HTTP(S) URL.
-- `YamlUtils.isHttpUrl()` helper and unit tests (`httpUrl.test.ts`) with fixture `kustomization-with-remote.yaml`.
+- `YamlUtils.isHttpUrl()` helper (superseded in 1.4.2 by `isRemoteResourceUri()`) and unit tests (`httpUrl.test.ts`) with fixture `kustomization-with-remote.yaml`.
 
 ### Changed
 - Standard `kustomization.yaml` document links use the same HTTP(S) handling as Flux references (parity with community PR).

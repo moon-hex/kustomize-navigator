@@ -5,6 +5,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - https://raw.gitlab.com/example/project.git/tags/?ref=v0.0.1
+  - oci://ghcr.io/example/org/kustomize-manifests
 
 patches:
   - https://raw.gitlab.com/example/project.git/tags/?ref=v0.0.1

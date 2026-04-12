@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { glob } from 'glob';
 import { execSync } from 'child_process';
+import { fileURLToPath } from 'node:url';
 import { YamlUtils } from './yamlUtils';
 
 // Interface for parsed kustomization file
@@ -271,8 +272,8 @@ export class KustomizeParser {
         const spec = parsed.spec;
         const references: string[] = [];
 
-        // Handle spec.path - resolve relative to Git root (skip remote HTTP URLs)
-        if (spec.path && typeof spec.path === 'string' && !YamlUtils.isHttpUrl(spec.path)) {
+        // Handle spec.path - resolve relative to Git root (skip remote URIs)
+        if (spec.path && typeof spec.path === 'string' && !YamlUtils.isRemoteResourceUri(spec.path)) {
             // resolveReference already returns a normalized path
             const resolvedPath = this.resolveReference(filePath, spec.path);
             
@@ -311,7 +312,7 @@ export class KustomizeParser {
                 }
                 // Skip objects without path property (e.g., inline patches with only 'patch' field)
 
-                if (patchPath && !YamlUtils.isHttpUrl(patchPath)) {
+                if (patchPath && !YamlUtils.isRemoteResourceUri(patchPath)) {
                     const resolvedPath = this.resolveReference(filePath, patchPath);
                     if (this.fileExists(resolvedPath)) {
                         references.push(resolvedPath);
@@ -331,7 +332,7 @@ export class KustomizeParser {
         }
 
         const addFluxGitRootRef = (ref: string) => {
-            if (typeof ref !== 'string' || YamlUtils.isHttpUrl(ref)) {
+            if (typeof ref !== 'string' || YamlUtils.isRemoteResourceUri(ref)) {
                 return;
             }
             const resolvedPath = this.resolveReference(filePath, ref);
@@ -377,8 +378,18 @@ export class KustomizeParser {
      * Resolve reference path based on file type
      */
     private resolveReference(basePath: string, reference: string): string {
-        if (YamlUtils.isHttpUrl(reference)) {
-            return reference;
+        const ref = reference.trim();
+
+        if (/^file:\/\//i.test(ref)) {
+            try {
+                return path.normalize(fileURLToPath(ref));
+            } catch {
+                return ref;
+            }
+        }
+
+        if (YamlUtils.isRemoteResourceUri(ref)) {
+            return ref;
         }
 
         const isFluxKustomization = this.isFluxKustomizationFile(basePath);
@@ -387,11 +398,11 @@ export class KustomizeParser {
             // For Flux Kustomization CRs, resolve relative to Git repository root
             const gitRoot = this.findGitRoot(basePath);
             // Handle relative paths properly
-            if (path.isAbsolute(reference)) {
-                return path.normalize(reference);
+            if (path.isAbsolute(ref)) {
+                return path.normalize(ref);
             } else {
                 // Remove leading "./" if present and resolve relative to git root
-                const cleanReference = reference.startsWith('./') ? reference.slice(2) : reference;
+                const cleanReference = ref.startsWith('./') ? ref.slice(2) : ref;
                 // path.resolve already normalizes, but ensure it's normalized
                 return path.normalize(path.resolve(gitRoot, cleanReference));
             }
@@ -399,7 +410,7 @@ export class KustomizeParser {
             // For standard kustomization files, resolve relative to file location
             const baseDir = path.dirname(basePath);
             // path.resolve already normalizes, but ensure it's normalized
-            return path.normalize(path.resolve(baseDir, reference));
+            return path.normalize(path.resolve(baseDir, ref));
         }
     }
 
@@ -613,15 +624,15 @@ export class KustomizeParser {
                             continue;
                         }
                         
-                        // Skip HTTP URLs because they cannot be resolved to local paths
-                        if (typeof refPath === 'string' && YamlUtils.isHttpUrl(refPath)) {
+                        // Skip remote URIs (https://, oci://, …); not local paths
+                        if (typeof refPath === 'string' && YamlUtils.isRemoteResourceUri(refPath)) {
                             continue;
                         }
                         if (
                             typeof refPath === 'object' &&
                             refPath.path &&
                             typeof refPath.path === 'string' &&
-                            YamlUtils.isHttpUrl(refPath.path)
+                            YamlUtils.isRemoteResourceUri(refPath.path)
                         ) {
                             continue;
                         }

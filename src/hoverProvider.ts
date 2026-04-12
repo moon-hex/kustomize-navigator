@@ -89,11 +89,11 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                     continue; // Try next kustomization if no match found
                 }
 
-                if (YamlUtils.isHttpUrl(matchingReference)) {
+                if (YamlUtils.isRemoteResourceUri(matchingReference)) {
                     const remoteHover = new vscode.MarkdownString();
                     remoteHover.isTrusted = true;
                     remoteHover.supportHtml = true;
-                    remoteHover.appendMarkdown(`### Remote resource (HTTP(S))\n\n`);
+                    remoteHover.appendMarkdown(`### Remote resource (URI)\n\n`);
                     remoteHover.appendMarkdown(`[\`${matchingReference}\`](${matchingReference})\n`);
                     return new vscode.Hover(remoteHover, wordRange);
                 }
@@ -203,7 +203,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                         if (targetKustomization.bases.length > 0) {
                             hoverContent.appendMarkdown(`#### Bases (${targetKustomization.bases.length})\n`);
                             for (const base of targetKustomization.bases) {
-                                if (YamlUtils.isHttpUrl(base)) {
+                                if (YamlUtils.isRemoteResourceUri(base)) {
                                     hoverContent.appendMarkdown(`- [\`${base}\`](${base})\n`);
                                     continue;
                                 }
@@ -255,7 +255,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                                 hoverContent.appendMarkdown(`#### JSON 6902 Patches (${targetKustomization.patchesJson6902.length})\n`);
                                 for (const patch of targetKustomization.patchesJson6902) {
                                     if (patch?.path && typeof patch.path === 'string') {
-                                        const patchUri = YamlUtils.isHttpUrl(patch.path)
+                                        const patchUri = YamlUtils.isRemoteResourceUri(patch.path)
                                             ? vscode.Uri.parse(patch.path)
                                             : vscode.Uri.file(
                                                   path.resolve(refBaseDir, patch.path)
@@ -297,7 +297,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
         baseDir: string
     ): void {
         for (const item of items) {
-            if (YamlUtils.isHttpUrl(item)) {
+            if (YamlUtils.isRemoteResourceUri(item)) {
                 hoverContent.appendMarkdown(`- [\`${item}\`](${item})\n`);
             } else {
                 const fullPath = path.resolve(baseDir, item);
@@ -343,7 +343,7 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                 hoverContent.appendMarkdown(`- \`${displayName}\`${targetInfo}\n`);
             } else if (patchPath && displayName) {
                 // Show linkable patch — web URI for remote, file URI for local
-                const patchUri = YamlUtils.isHttpUrl(patchPath)
+                const patchUri = YamlUtils.isRemoteResourceUri(patchPath)
                     ? vscode.Uri.parse(patchPath)
                     : vscode.Uri.file(path.resolve(path.dirname(basePath), patchPath));
                 

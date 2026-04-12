@@ -202,10 +202,28 @@ export class YamlUtils {
     }
 
     /**
-     * True for plain `http://` / `https://` references (Kustomize remote bases/resources).
-     * Not used for `oci://`, `git::https://`, etc.
+     * `scheme://...` remote references (Kustomize / GitOps): do not pass through `path.resolve` as relative paths.
+     * Matches e.g. `https://`, `http://`, `oci://`, `ssh://`. Excludes `file://` (handled via `fileURLToPath` in the parser).
+     * Terraform-style `git::https://...` module sources are included.
      */
-    public static isHttpUrl(reference: string): boolean {
-        return reference.startsWith('http://') || reference.startsWith('https://');
+    private static readonly _schemeAuthorityUri = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+
+    private static readonly _gitWrappedHttp = /^git::https?:\/\//i;
+
+    public static isRemoteResourceUri(reference: string): boolean {
+        if (typeof reference !== 'string') {
+            return false;
+        }
+        const t = reference.trim();
+        if (t.length === 0) {
+            return false;
+        }
+        if (/^file:\/\//i.test(t)) {
+            return false;
+        }
+        if (YamlUtils._gitWrappedHttp.test(t)) {
+            return true;
+        }
+        return YamlUtils._schemeAuthorityUri.test(t);
     }
 }

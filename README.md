@@ -6,7 +6,7 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 
 ## Features
 
-- **Smart Navigation**: Ctrl+click to navigate between Kustomize files (local paths and `http://` / `https://` remote resource URLs)
+- **Smart Navigation**: Ctrl+click between Kustomize files; remote entries with a URI scheme (`https://`, `oci://`, `git::https://`, …) open as links instead of bogus file paths (`file://` resolves to a local path when used in `resources`)
 - **Back References**: View which files reference the current file (hover on `apiVersion:` line)
 - **Flux Support**: Works with both standard Kustomize and Flux CD
 - **Flux cross-manifest links**: Ctrl+click `sourceRef` / `chartRef` / `ArtifactGenerator` `sources` entries to open the matching YAML in the repo (indexed by `kind` + `metadata.name` + namespace)
@@ -79,11 +79,14 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.4.2 (2026-04-12)
+- **Remote URI detection**: any `scheme://` reference (e.g. `oci://`, `ssh://`) and `git::https://…` are handled like `https://`; `file://` is turned into a real filesystem path for the reference map
+
 ### 1.4.1 (2026-04-12)
 - **HTTP(S) coverage**: defensive `resolveReference`; reference map includes `generators` / `transformers`; Flux `spec.components` in the map when local; hovers match more fields, show remote URL hovers, and list components/config/CRDs/generators/transformers with correct links
 
 ### 1.4.0 (2026-04-12)
-- **HTTP(S) remote resources**: `http://` / `https://` entries in Kustomize and Flux (`resources`, `bases`, `patches`, etc.) open as normal web links; they are excluded from the local reference graph. Includes hovers and standard + Flux document links.
+- **Remote resources**: URI entries in Kustomize and Flux open as links and are omitted from the local reference graph (see 1.4.2 for all `scheme://` types and `file://` handling). Includes hovers and standard + Flux document links.
 
 ### 1.3.1 (2026-04-12)
 - **Path case validation**: on Linux the link provider skips case checks entirely and the setting is documented as ignored there (no per-link branching; OS already case-sensitive)

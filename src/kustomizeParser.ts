@@ -583,6 +583,11 @@ export class KustomizeParser {
                             continue;
                         }
                         
+                        // Skip HTTP URLs because they cannot be resolved to local paths
+                        if (typeof refPath === "string" && YamlUtils.isHttpUrl(refPath)) {
+                            continue;
+                        }
+
                         let resolvedPath: string | undefined;
                         try {
                             // Determine the reference path

@@ -9,7 +9,7 @@ import {
     findChartRefNameIndex,
     findArtifactGeneratorSourceNameIndex,
 } from './fluxYamlRefs';
-import { validateResolvedPathCase } from './pathCaseValidation';
+import { platformNeedsPathCaseValidation, validateResolvedPathCase } from './pathCaseValidation';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
@@ -30,9 +30,9 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         const text = document.getText();
         const links: vscode.DocumentLink[] = [];
         const diagnostics: vscode.Diagnostic[] = [];
-        const validatePathCase = vscode.workspace
-            .getConfiguration('kustomizeNavigator')
-            .get<boolean>('validateReferencePathCase', true);
+        const validatePathCase =
+            platformNeedsPathCaseValidation() &&
+            vscode.workspace.getConfiguration('kustomizeNavigator').get<boolean>('validateReferencePathCase', true);
 
         // Only process YAML files
         if (!document.fileName.endsWith('.yaml') && !document.fileName.endsWith('.yml')) {

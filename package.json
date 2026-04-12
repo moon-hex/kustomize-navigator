@@ -113,7 +113,7 @@
         "kustomizeNavigator.validateReferencePathCase": {
           "type": "boolean",
           "default": true,
-          "description": "On Windows and macOS, warn when a reference path matches only case-insensitively (would fail on Linux / Flux). Uses native realpath and a directory walk."
+          "description": "On Windows and macOS only: warn when a reference path matches only case-insensitively (would fail on Linux / Flux). Ignored on Linux (no extra checks). Uses native realpath and a directory walk."
         }
       },
       "performance": {

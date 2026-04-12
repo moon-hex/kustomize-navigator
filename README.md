@@ -31,7 +31,7 @@ Key settings (see VS Code settings for all options):
 - `kustomizeNavigator.diagnostics.enabled`: Toggle all diagnostic checks
 - `kustomizeNavigator.standardFluxVariables`: List of standard Flux variables for autocompletion
 - `kustomizeNavigator.performance.enableFileSystemCache`: Enable/disable file system operation caching (default: true)
-- `kustomizeNavigator.validateReferencePathCase`: On Windows and macOS, warn when YAML path spelling does not match on-disk names (Linux/Flux case-sensitive checkout). Uses `realpath` and a segment-by-segment directory check (default: true)
+- `kustomizeNavigator.validateReferencePathCase`: On Windows and macOS only, warn when YAML path spelling does not match on-disk names (would fail on a Linux / Flux checkout). On Linux this setting is ignored—the OS already enforces case. Uses `realpath` and a segment-by-segment directory check (default: true)
 
 ## Patch Format Support
 
@@ -80,7 +80,7 @@ Each check can be individually enabled/disabled in settings.
 ## Recent Changes
 
 ### 1.3.0 (2026-04-12)
-- **Path case validation** (Windows / macOS): warns when a Flux or Kustomize reference resolves case-insensitively but would fail on Linux / Flux; uses native `realpath` plus a segment-by-segment directory check. Setting: `kustomizeNavigator.validateReferencePathCase` (default: true)
+- **Path case validation** (Windows / macOS only; Linux skips—OS already case-sensitive): warns when a Flux or Kustomize reference resolves case-insensitively but would fail on Linux / Flux; uses native `realpath` plus a segment-by-segment directory check. Setting: `kustomizeNavigator.validateReferencePathCase` (default: true)
 
 ### 1.2.0 (2026-03-26)
 - **Flux cross-resource navigation**: links from `Kustomization.spec.sourceRef`, `HelmRelease.spec.chartRef`, and `ArtifactGenerator.spec.sources[]` to other manifests in the workspace when `kind` / `name` / namespace match ([Artifact generators](https://fluxcd.io/flux/components/source/artifactgenerators/))

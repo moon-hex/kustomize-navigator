@@ -330,6 +330,32 @@ export class KustomizeParser {
             processPatchReferences(spec.patchesJson6902);
         }
 
+        const addFluxGitRootRef = (ref: string) => {
+            if (typeof ref !== 'string' || YamlUtils.isHttpUrl(ref)) {
+                return;
+            }
+            const resolvedPath = this.resolveReference(filePath, ref);
+            if (this.isDirectory(resolvedPath)) {
+                const kustomizationYaml = path.normalize(path.join(resolvedPath, 'kustomization.yaml'));
+                const kustomizationYml = path.normalize(path.join(resolvedPath, 'kustomization.yml'));
+                if (this.fileExists(kustomizationYaml)) {
+                    references.push(kustomizationYaml);
+                } else if (this.fileExists(kustomizationYml)) {
+                    references.push(kustomizationYml);
+                }
+            } else if (this.fileExists(resolvedPath)) {
+                references.push(resolvedPath);
+            }
+        };
+
+        if (Array.isArray(spec.components)) {
+            spec.components.forEach((c: unknown) => {
+                if (typeof c === 'string') {
+                    addFluxGitRootRef(c);
+                }
+            });
+        }
+
         const kustomization: KustomizationFile = {
             filePath,
             resources: [],
@@ -351,6 +377,10 @@ export class KustomizeParser {
      * Resolve reference path based on file type
      */
     private resolveReference(basePath: string, reference: string): string {
+        if (YamlUtils.isHttpUrl(reference)) {
+            return reference;
+        }
+
         const isFluxKustomization = this.isFluxKustomizationFile(basePath);
 
         if (isFluxKustomization) {
@@ -648,6 +678,8 @@ export class KustomizeParser {
                 addReferences(kustomization.patchesStrategicMerge);
                 addReferences(kustomization.configurations);
                 addReferences(kustomization.crds);
+                addReferences(kustomization.generators);
+                addReferences(kustomization.transformers);
 
                 // Handle JSON 6902 patches which have a path field
                 kustomization.patchesJson6902.forEach(patch => {

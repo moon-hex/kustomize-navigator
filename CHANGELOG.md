@@ -1,5 +1,15 @@
 # Change Log
 
+## [1.4.1] - 2026-04-12
+
+### Added
+- `resolveReference` returns HTTP(S) URLs unchanged so callers never build mangled filesystem paths.
+- Standard kustomize reference map includes `generators` and `transformers` (with the same HTTP(S) skips as other lists).
+- Flux `spec.components` entries resolve into the local reference map when they point at existing paths (HTTP(S) skipped).
+
+### Changed
+- **Hovers**: word-match includes `crds`, `generators`, `transformers`, and `patchesJson6902` paths; hovering an `http(s)://` reference shows a direct remote link; nested kustomization hovers list components, configurations, CRDs, generators, and transformers with the same file vs URL link rules as resources.
+
 ## [1.4.0] - 2026-04-12
 
 ### Added

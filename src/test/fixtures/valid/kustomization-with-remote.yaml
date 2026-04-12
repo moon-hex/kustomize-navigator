@@ -12,3 +12,6 @@ patches:
     target:
       kind: Deployment
       name: demo
+
+generators:
+  - https://example.com/generator.yaml

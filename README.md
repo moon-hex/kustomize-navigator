@@ -79,6 +79,9 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.4.1 (2026-04-12)
+- **HTTP(S) coverage**: defensive `resolveReference`; reference map includes `generators` / `transformers`; Flux `spec.components` in the map when local; hovers match more fields, show remote URL hovers, and list components/config/CRDs/generators/transformers with correct links
+
 ### 1.4.0 (2026-04-12)
 - **HTTP(S) remote resources**: `http://` / `https://` entries in Kustomize and Flux (`resources`, `bases`, `patches`, etc.) open as normal web links; they are excluded from the local reference graph. Includes hovers and standard + Flux document links.
 

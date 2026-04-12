@@ -70,6 +70,19 @@ suite('HTTP URL handling', () => {
         );
     });
 
+    test('parser skips https entries in generators (reference map)', async () => {
+        const parser = new KustomizeParser(fixturesPath, false);
+        await parser.buildReferenceMap();
+
+        const refs = parser.getReferencesForFile(remoteFixturePath);
+        const genRemote = refs.filter((r) => r.includes('generator.yaml'));
+        assert.strictEqual(
+            genRemote.length,
+            0,
+            `Reference map must not list remote generator URL as a local path, found: ${genRemote.join(', ')}`
+        );
+    });
+
     test('parser skips object patches whose path is an HTTP URL', async () => {
         const parser = new KustomizeParser(fixturesPath, false);
         await parser.buildReferenceMap();

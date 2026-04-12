@@ -202,7 +202,8 @@ export class YamlUtils {
     }
 
     /**
-     * Returns true if the string is an HTTP/HTTPS URL.
+     * True for plain `http://` / `https://` references (Kustomize remote bases/resources).
+     * Not used for `oci://`, `git::https://`, etc.
      */
     public static isHttpUrl(reference: string): boolean {
         return reference.startsWith('http://') || reference.startsWith('https://');

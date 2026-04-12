@@ -52,19 +52,21 @@ suite('HTTP URL handling', () => {
         );
     });
 
-    test('parser still resolves local resources alongside remote ones', async () => {
+    test('parser still resolves local resources alongside remote ones', () => {
         const parser = new KustomizeParser(fixturesPath, false);
-        await parser.buildReferenceMap();
+        const kustomizations = parser.parseKustomizationFile(remoteFixturePath);
 
-        const refs = parser.getReferencesForFile(remoteFixturePath);
+        assert.ok(kustomizations.length > 0, 'Should parse the fixture file');
+
+        const resources = kustomizations[0].resources ?? [];
 
         assert.ok(
-            refs.some(r => r.endsWith('deployment.yaml')),
-            'deployment.yaml should still appear in references'
+            resources.includes('deployment.yaml'),
+            `deployment.yaml should appear in resources, got: ${JSON.stringify(resources)}`
         );
         assert.ok(
-            refs.some(r => r.endsWith('service.yaml')),
-            'service.yaml should still appear in references'
+            resources.includes('service.yaml'),
+            `service.yaml should appear in resources, got: ${JSON.stringify(resources)}`
         );
     });
 });

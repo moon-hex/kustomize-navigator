@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate and manage Kustomize references in your Kubernetes manifests",
-  "version": "1.2.0",
+  "version": "1.3.1",
   "icon": "images/vscode-extension-icon.png",
   "engines": {
     "vscode": "^1.85.0"
@@ -109,6 +109,11 @@
           "type": "boolean",
           "default": true,
           "description": "Warn about deprecated patch fields (patchesStrategicMerge, patchesJson6902)"
+        },
+        "kustomizeNavigator.validateReferencePathCase": {
+          "type": "boolean",
+          "default": true,
+          "description": "On Windows and macOS only: warn when a reference path matches only case-insensitively (would fail on Linux / Flux). Ignored on Linux (no extra checks). Uses native realpath and a directory walk."
         }
       },
       "performance": {

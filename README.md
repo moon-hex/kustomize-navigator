@@ -79,8 +79,11 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.3.1 (2026-04-12)
+- **Path case validation**: on Linux the link provider skips case checks entirely and the setting is documented as ignored there (no per-link branching; OS already case-sensitive)
+
 ### 1.3.0 (2026-04-12)
-- **Path case validation** (Windows / macOS only; Linux skips—OS already case-sensitive): warns when a Flux or Kustomize reference resolves case-insensitively but would fail on Linux / Flux; uses native `realpath` plus a segment-by-segment directory check. Setting: `kustomizeNavigator.validateReferencePathCase` (default: true)
+- **Path case validation** (Windows / macOS): warns when a Flux or Kustomize reference resolves case-insensitively but would fail on Linux / Flux; uses native `realpath` plus a segment-by-segment directory check. Setting: `kustomizeNavigator.validateReferencePathCase` (default: true)
 
 ### 1.2.0 (2026-03-26)
 - **Flux cross-resource navigation**: links from `Kustomization.spec.sourceRef`, `HelmRelease.spec.chartRef`, and `ArtifactGenerator.spec.sources[]` to other manifests in the workspace when `kind` / `name` / namespace match ([Artifact generators](https://fluxcd.io/flux/components/source/artifactgenerators/))

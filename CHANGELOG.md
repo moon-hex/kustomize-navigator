@@ -1,9 +1,11 @@
 # Change Log
 
-## [1.3.0] - 2026-04-12
+## [1.3.1] - 2026-04-12
 
 ### Changed
-- Path case validation is skipped entirely on Linux (`process.platform !== 'win32' && !== 'darwin'`): the user setting is ignored there so no extra branching per link (filesystem is already case-sensitive).
+- Path case validation: document link provider gates on `platformNeedsPathCaseValidation()` so Linux never runs the case-check branches; setting description and README state the option is ignored on Linux (filesystem already case-sensitive).
+
+## [1.3.0] - 2026-04-12
 
 ### Added
 - Path case validation for document links on Windows and macOS: diagnostic when YAML path spelling does not match on-disk names (would work locally but fail on case-sensitive Linux / Flux checkout). Combines `fs.realpathSync.native` with a `readdir` walk from the Git root (Flux), volume root (absolute Flux paths), or kustomization directory (standard Kustomize).

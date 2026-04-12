@@ -1,5 +1,14 @@
 # Change Log
 
+## [1.5.0] - 2026-04-12
+
+### Added
+- `fluxGitSource.ts`: normalize and compare git remote URLs; read `GitRepository.spec.url` from indexed manifests.
+- Flux `Kustomization` **local file links** (`spec.path`, patches, components, …) are only created when `sourceRef` is a **GitRepository** whose `spec.url` matches **`git remote get-url origin`** at the git root of the file you are editing. Otherwise those paths are skipped (no bogus `file://` targets or missing-file warnings). Remote URI entries (`https://`, `oci://`, …) still get web links.
+
+### Known limitations (see README)
+- Reference map / hovers can still assume workspace layout for Flux paths; multi-root clone matching is planned.
+
 ## [1.4.2] - 2026-04-12
 
 ### Changed

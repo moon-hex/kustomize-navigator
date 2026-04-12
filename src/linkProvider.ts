@@ -341,6 +341,16 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 return;
             }
 
+            // HTTP URLs — create a real web link instead of mangling into file:///https:/...
+            if (YamlUtils.isHttpUrl(reference)) {
+                const pos = document.positionAt(referenceIndex);
+                const range = new vscode.Range(pos, pos.translate(0, reference.length));
+                const docLink = new vscode.DocumentLink(range, vscode.Uri.parse(reference));
+                docLink.tooltip = `Open remote resource: ${reference}`;
+                links.push(docLink);
+                return;
+            }
+
             // FIXED: Always resolve relative to Git repository root for Flux Kustomizations
             const gitRoot = this.findGitRoot(document.fileName);
 

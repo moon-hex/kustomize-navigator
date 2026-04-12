@@ -115,9 +115,13 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                         if (targetKustomization.resources.length > 0) {
                             hoverContent.appendMarkdown(`#### Resources (${targetKustomization.resources.length})\n`);
                             for (const resource of targetKustomization.resources) {
-                                const resourcePath = path.resolve(path.dirname(resolvedPath), resource);
-                                const resourceUri = vscode.Uri.file(resourcePath);
-                                hoverContent.appendMarkdown(`- [\`${resource}\`](${resourceUri.toString()})\n`);
+                                if (YamlUtils.isHttpUrl(resource)) {
+                                    hoverContent.appendMarkdown(`- [\`${resource}\`](${resource})\n`);
+                                } else {
+                                    const resourcePath = path.resolve(path.dirname(resolvedPath), resource);
+                                    const resourceUri = vscode.Uri.file(resourcePath);
+                                    hoverContent.appendMarkdown(`- [\`${resource}\`](${resourceUri.toString()})\n`);
+                                }
                             }
                             hoverContent.appendMarkdown('\n');
                         }
@@ -238,9 +242,10 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                 }
                 hoverContent.appendMarkdown(`- \`${displayName}\`${targetInfo}\n`);
             } else if (patchPath && displayName) {
-                // Show linkable patch
-                const fullPath = path.resolve(path.dirname(basePath), patchPath);
-                const patchUri = vscode.Uri.file(fullPath);
+                // Show linkable patch — web URI for remote, file URI for local
+                const patchUri = YamlUtils.isHttpUrl(patchPath)
+                    ? vscode.Uri.parse(patchPath)
+                    : vscode.Uri.file(path.resolve(path.dirname(basePath), patchPath));
                 
                 let targetInfo = '';
                 if (patch?.target?.kind) {

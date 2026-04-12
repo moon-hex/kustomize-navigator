@@ -271,8 +271,8 @@ export class KustomizeParser {
         const spec = parsed.spec;
         const references: string[] = [];
 
-        // Handle spec.path - resolve relative to Git root
-        if (spec.path && typeof spec.path === 'string') {
+        // Handle spec.path - resolve relative to Git root (skip remote HTTP URLs)
+        if (spec.path && typeof spec.path === 'string' && !YamlUtils.isHttpUrl(spec.path)) {
             // resolveReference already returns a normalized path
             const resolvedPath = this.resolveReference(filePath, spec.path);
             
@@ -311,7 +311,7 @@ export class KustomizeParser {
                 }
                 // Skip objects without path property (e.g., inline patches with only 'patch' field)
 
-                if (patchPath) {
+                if (patchPath && !YamlUtils.isHttpUrl(patchPath)) {
                     const resolvedPath = this.resolveReference(filePath, patchPath);
                     if (this.fileExists(resolvedPath)) {
                         references.push(resolvedPath);
@@ -584,7 +584,15 @@ export class KustomizeParser {
                         }
                         
                         // Skip HTTP URLs because they cannot be resolved to local paths
-                        if (typeof refPath === "string" && YamlUtils.isHttpUrl(refPath)) {
+                        if (typeof refPath === 'string' && YamlUtils.isHttpUrl(refPath)) {
+                            continue;
+                        }
+                        if (
+                            typeof refPath === 'object' &&
+                            refPath.path &&
+                            typeof refPath.path === 'string' &&
+                            YamlUtils.isHttpUrl(refPath.path)
+                        ) {
                             continue;
                         }
 

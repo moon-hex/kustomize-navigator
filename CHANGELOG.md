@@ -1,5 +1,16 @@
 # Change Log
 
+## [1.4.0] - 2026-04-12
+
+### Added
+- **HTTP(S) remote references** in Kustomize and Flux YAML: `http://` and `https://` entries in `resources`, `bases`, `patches`, and related lists are opened as real web links in the editor instead of broken `file://` URLs derived from the URL string.
+- Reference map and Flux resolved references skip remote HTTP(S) paths (they are not workspace files).
+- Hovers link remote `resources`, `bases`, `patches` (including JSON6902 `path`), and Flux patch entries appropriately when the value is an HTTP(S) URL.
+- `YamlUtils.isHttpUrl()` helper and unit tests (`httpUrl.test.ts`) with fixture `kustomization-with-remote.yaml`.
+
+### Changed
+- Standard `kustomization.yaml` document links use the same HTTP(S) handling as Flux references (parity with community PR).
+
 ## [1.3.1] - 2026-04-12
 
 ### Changed

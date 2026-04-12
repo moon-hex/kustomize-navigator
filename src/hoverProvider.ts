@@ -130,6 +130,10 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                         if (targetKustomization.bases.length > 0) {
                             hoverContent.appendMarkdown(`#### Bases (${targetKustomization.bases.length})\n`);
                             for (const base of targetKustomization.bases) {
+                                if (YamlUtils.isHttpUrl(base)) {
+                                    hoverContent.appendMarkdown(`- [\`${base}\`](${base})\n`);
+                                    continue;
+                                }
                                 const basePath = path.resolve(path.dirname(resolvedPath), base);
                                 let baseUri;
 
@@ -178,8 +182,11 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                                 hoverContent.appendMarkdown(`#### JSON 6902 Patches (${targetKustomization.patchesJson6902.length})\n`);
                                 for (const patch of targetKustomization.patchesJson6902) {
                                     if (patch?.path && typeof patch.path === 'string') {
-                                        const patchPath = path.resolve(path.dirname(resolvedPath), patch.path);
-                                        const patchUri = vscode.Uri.file(patchPath);
+                                        const patchUri = YamlUtils.isHttpUrl(patch.path)
+                                            ? vscode.Uri.parse(patch.path)
+                                            : vscode.Uri.file(
+                                                  path.resolve(path.dirname(resolvedPath), patch.path)
+                                              );
 
                                         let targetInfo = '';
                                         if (patch.target?.kind) {

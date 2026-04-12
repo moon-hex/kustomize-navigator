@@ -205,6 +205,6 @@ export class YamlUtils {
      * Returns true if the string is an HTTP/HTTPS URL.
      */
     public static isHttpUrl(reference: string): boolean {
-      return reference.startsWith('http://') || reference.startsWith('https://');
+        return reference.startsWith('http://') || reference.startsWith('https://');
     }
 }

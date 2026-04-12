@@ -8,3 +8,7 @@ resources:
 
 patches:
   - https://raw.gitlab.com/example/project.git/tags/?ref=v0.0.1
+  - path: https://example.com/remote-patch.yaml
+    target:
+      kind: Deployment
+      name: demo

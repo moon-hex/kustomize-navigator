@@ -2,7 +2,7 @@
   "name": "kustomize-navigator",
   "displayName": "Kustomize Navigator",
   "description": "Navigate and manage Kustomize references in your Kubernetes manifests",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "icon": "images/vscode-extension-icon.png",
   "engines": {
     "vscode": "^1.85.0"

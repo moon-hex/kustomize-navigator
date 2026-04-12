@@ -69,4 +69,17 @@ suite('HTTP URL handling', () => {
             `service.yaml should appear in resources, got: ${JSON.stringify(resources)}`
         );
     });
+
+    test('parser skips object patches whose path is an HTTP URL', async () => {
+        const parser = new KustomizeParser(fixturesPath, false);
+        await parser.buildReferenceMap();
+
+        const refs = parser.getReferencesForFile(remoteFixturePath);
+        const exampleRemote = refs.filter((r) => r.includes('example.com'));
+        assert.strictEqual(
+            exampleRemote.length,
+            0,
+            `Reference map must not resolve https patch path to a local path, found: ${exampleRemote.join(', ')}`
+        );
+    });
 });

@@ -6,7 +6,7 @@ A Visual Studio Code extension that enhances your Kubernetes GitOps workflow by 
 
 ## Features
 
-- **Smart Navigation**: Ctrl+click to navigate between Kustomize files
+- **Smart Navigation**: Ctrl+click to navigate between Kustomize files (local paths and `http://` / `https://` remote resource URLs)
 - **Back References**: View which files reference the current file (hover on `apiVersion:` line)
 - **Flux Support**: Works with both standard Kustomize and Flux CD
 - **Flux cross-manifest links**: Ctrl+click `sourceRef` / `chartRef` / `ArtifactGenerator` `sources` entries to open the matching YAML in the repo (indexed by `kind` + `metadata.name` + namespace)
@@ -78,6 +78,9 @@ The extension provides comprehensive validation for your Kubernetes and Flux con
 Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
+
+### 1.4.0 (2026-04-12)
+- **HTTP(S) remote resources**: `http://` / `https://` entries in Kustomize and Flux (`resources`, `bases`, `patches`, etc.) open as normal web links; they are excluded from the local reference graph. Includes hovers and standard + Flux document links.
 
 ### 1.3.1 (2026-04-12)
 - **Path case validation**: on Linux the link provider skips case checks entirely and the setting is documented as ignored there (no per-link branching; OS already case-sensitive)

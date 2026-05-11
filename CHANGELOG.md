@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.6.1] - 2026-05-12
+
+### Fixed
+- **`spec.path` links missing**: when the `GitRepository` manifest is not indexed in the workspace (e.g. applied via bootstrap, not committed alongside the Kustomization CR) or has no `spec.url`, `resolveFluxContentRoot` was returning `skip` instead of falling back to the document's own git root. Links and validation are now restored for this common case, matching pre-1.5.0 behaviour. URL-verified cross-repo resolution still takes precedence when `spec.url` is available.
+
 ## [1.6.0] - 2026-05-11
 
 ### Added

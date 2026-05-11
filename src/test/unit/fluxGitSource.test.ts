@@ -57,7 +57,9 @@ suite('resolveFluxContentRoot', () => {
         assert.strictEqual(result.gitRoot, undefined);
     });
 
-    test('returns skip when specUrl is undefined', () => {
+    test('falls back to document git root when specUrl is undefined', () => {
+        // GitRepository manifest not in workspace (or no spec.url) — should still link
+        // using the document's own repo rather than silently skipping.
         const result = resolveFluxContentRoot({
             sourceRefKind: 'GitRepository',
             specUrl: undefined,
@@ -65,7 +67,8 @@ suite('resolveFluxContentRoot', () => {
             documentGitRoot: docRoot,
             gitIndex: makeIndex({}),
         });
-        assert.strictEqual(result.via, 'skip');
+        assert.strictEqual(result.via, 'document');
+        assert.strictEqual(result.gitRoot, docRoot);
     });
 
     test('returns workspace match when index has an entry', () => {

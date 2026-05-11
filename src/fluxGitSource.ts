@@ -121,7 +121,11 @@ export function resolveFluxContentRoot(options: {
         return { gitRoot: undefined, via: 'skip' };
     }
     if (!specUrl) {
-        return { gitRoot: undefined, via: 'skip' };
+        // GitRepository manifest not found in workspace or has no spec.url — cannot verify
+        // the remote URL, so fall back to the document's own git root (same as pre-1.5.0
+        // behaviour). A cross-repo clone picked up by the workspace index still wins when
+        // specUrl IS known (handled below).
+        return { gitRoot: documentGitRoot, via: 'document' };
     }
 
     // Fast path: document lives inside the matching clone.

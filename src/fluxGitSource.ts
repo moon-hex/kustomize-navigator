@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { YamlUtils } from './yamlUtils';
+import type { IGitIndex } from './workspaceGitIndex';
 
 /**
  * Normalize git remote URLs for comparison (https vs ssh, .git suffix, trailing slash).
@@ -109,4 +110,58 @@ export function fluxKustomizationPathsUseWorkspaceGitRepo(options: {
     const gitRoot = options.gitRootResolver(options.documentFilePath);
     const origin = getGitRemoteUrl(gitRoot);
     return gitRemotesMatch(specUrl, origin);
+}
+
+// ---------------------------------------------------------------------------
+// Workspace-aware content-root resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Discriminated union describing which git root to use when resolving Flux
+ * Kustomization local paths.
+ */
+export type FluxContentRootResult =
+    | { gitRoot: string; via: 'document' | 'workspace' }
+    | { gitRoot: undefined; via: 'no-clone'; specUrl: string }
+    | { gitRoot: undefined; via: 'skip' };   // non-GitRepository source or specUrl absent
+
+/**
+ * Determines the git-root directory whose checkout contains the files referenced
+ * by a Flux Kustomization's spec.path / patches.
+ *
+ * Resolution order:
+ *  1. Document's own git clone, if its origin matches specUrl.
+ *  2. Any other clone found by gitIndex in the workspace (cross-repo link).
+ *  3. { via: 'no-clone' } — GitRepository source with a known URL but no local clone.
+ *  4. { via: 'skip' } — non-GitRepository source (OCI, Bucket, …) or missing specUrl.
+ */
+export function resolveFluxContentRoot(options: {
+    sourceRefKind: string;
+    specUrl: string | undefined;
+    documentFilePath: string;
+    documentGitRoot: string;
+    gitIndex: IGitIndex;
+}): FluxContentRootResult {
+    const { sourceRefKind, specUrl, documentFilePath, documentGitRoot, gitIndex } = options;
+
+    if (sourceRefKind.trim() !== 'GitRepository') {
+        return { gitRoot: undefined, via: 'skip' };
+    }
+    if (!specUrl) {
+        return { gitRoot: undefined, via: 'skip' };
+    }
+
+    // Fast path: document lives inside the matching clone.
+    const docOrigin = getGitRemoteUrl(documentGitRoot);
+    if (docOrigin && gitRemotesMatch(specUrl, docOrigin)) {
+        return { gitRoot: documentGitRoot, via: 'document' };
+    }
+
+    // Search workspace for another clone whose origin matches.
+    const found = gitIndex.findBest(specUrl, documentFilePath);
+    if (found) {
+        return { gitRoot: found, via: 'workspace' };
+    }
+
+    return { gitRoot: undefined, via: 'no-clone', specUrl };
 }

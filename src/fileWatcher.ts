@@ -18,9 +18,22 @@ export class KustomizeFileWatcher {
     private readonly massChangeThreshold = 50; // If more than 50 files change in 1 second
     private cleanupInterval: NodeJS.Timeout | undefined = undefined;
 
-    constructor(workspaceRoot: string, enableFileSystemCache: boolean = true) {
-        this.parser = new KustomizeParser(workspaceRoot, enableFileSystemCache);
-        this.fluxResourceIndex = new FluxResourceIndex(workspaceRoot);
+    constructor(workspaceRoots: string | string[], enableFileSystemCache: boolean = true) {
+        this.parser = new KustomizeParser(workspaceRoots, enableFileSystemCache);
+        this.fluxResourceIndex = new FluxResourceIndex(workspaceRoots);
+    }
+
+    /**
+     * Called when workspace folders change — updates the roots in parser/index
+     * and triggers a full rebuild.
+     */
+    public async updateWorkspaceRoots(roots: string[]): Promise<void> {
+        if (roots.length === 0) { return; }
+        this.parser.clearCaches();
+        await Promise.all([
+            this.parser.setWorkspaceRoots(roots),
+            this.fluxResourceIndex.setWorkspaceRoots(roots),
+        ]);
     }
 
     public async initialize(): Promise<void> {

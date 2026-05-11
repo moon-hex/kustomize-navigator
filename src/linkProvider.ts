@@ -10,7 +10,8 @@ import {
     findArtifactGeneratorSourceNameIndex,
 } from './fluxYamlRefs';
 import { platformNeedsPathCaseValidation, validateResolvedPathCase } from './pathCaseValidation';
-import { fluxKustomizationPathsUseWorkspaceGitRepo } from './fluxGitSource';
+import { resolveFluxContentRoot, readGitRepositorySpecUrl } from './fluxGitSource';
+import { WorkspaceGitIndex } from './workspaceGitIndex';
 
 export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
     private diagnosticCollection: vscode.DiagnosticCollection;
@@ -18,9 +19,9 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
     constructor(
         private parser: KustomizeParser,
-        private fluxResourceIndex: FluxResourceIndex
+        private fluxResourceIndex: FluxResourceIndex,
+        private workspaceGitIndex: WorkspaceGitIndex
     ) {
-        // Create a diagnostic collection for this provider
         this.diagnosticCollection = vscode.languages.createDiagnosticCollection('kustomize-navigator');
     }
 
@@ -110,112 +111,90 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         const spec = content.spec;
         const defNs = typeof content.metadata?.namespace === 'string' ? content.metadata.namespace : '';
         const sr = spec.sourceRef;
-        const fluxPathLinksUseWorkspaceGit = (() => {
+
+        // Resolve which git root to use for path validation.
+        const contentRootResult = (() => {
             if (!sr || typeof sr.kind !== 'string' || typeof sr.name !== 'string') {
-                return false;
+                return { gitRoot: undefined, via: 'skip' } as const;
             }
             const refNs = typeof sr.namespace === 'string' ? sr.namespace : undefined;
             const sourceUri = this.fluxResourceIndex.lookup(sr.kind, sr.name, refNs, defNs);
-            return fluxKustomizationPathsUseWorkspaceGitRepo({
+            const specUrl = sourceUri?.fsPath ? readGitRepositorySpecUrl(sourceUri.fsPath) : undefined;
+            return resolveFluxContentRoot({
                 sourceRefKind: sr.kind,
-                gitRepositoryYamlPath: sourceUri?.fsPath,
+                specUrl,
                 documentFilePath: document.fileName,
-                gitRootResolver: (fp) => this.findGitRoot(fp),
+                documentGitRoot: this.findGitRoot(document.fileName),
+                gitIndex: this.workspaceGitIndex,
             });
         })();
 
-        // Process spec.path - THIS IS THE KEY FIX
-        if (spec.path && typeof spec.path === 'string') {
-            await this.addFluxLinkForReference(
-                document,
-                'path',
-                spec.path,
-                links,
-                diagnostics,
-                validatePathCase,
-                fluxPathLinksUseWorkspaceGit
-            );
-        }
+        const fluxContentRoot = contentRootResult.gitRoot; // string | undefined
 
-        // Process patches - supports string format, object with path, and inline patches
-        if (Array.isArray(spec.patches)) {
-            for (const patch of spec.patches) {
-                if (patch === null || patch === undefined) {
-                    continue;
-                }
-                if (typeof patch === 'string') {
-                    // String format: patches: [patch.yaml]
-                    await this.addFluxLinkForReference(
-                        document,
-                        'patches',
-                        patch,
-                        links,
-                        diagnostics,
-                        validatePathCase,
-                        fluxPathLinksUseWorkspaceGit
-                    );
-                } else if (typeof patch === 'object' && patch.path) {
-                    // Object format with path: patches: [{path: patch.yaml, target: {...}}]
-                    await this.addFluxLinkForReference(
-                        document,
-                        'patches',
-                        patch.path,
-                        links,
-                        diagnostics,
-                        validatePathCase,
-                        fluxPathLinksUseWorkspaceGit
-                    );
-                }
-                // Inline patches (with patch field but no path) don't need linking
+        // Option A: add a single warning on the sourceRef when a GitRepository URL is known
+        // but no matching local clone was found in the workspace.
+        if (contentRootResult.via === 'no-clone') {
+            const docText = document.getText();
+            const idx = findSourceRefNameIndex(docText, sr.kind, sr.name);
+            if (idx >= 0) {
+                const pos = document.positionAt(idx);
+                const range = new vscode.Range(pos, pos.translate(0, sr.name.length));
+                const diag = new vscode.Diagnostic(
+                    range,
+                    `No local clone of ${contentRootResult.specUrl} found in workspace — Flux path links and validation unavailable`,
+                    vscode.DiagnosticSeverity.Warning
+                );
+                diag.source = 'Flux Kustomize Navigator';
+                diagnostics.push(diag);
             }
         }
 
-        // Process patchesStrategicMerge
+        if (spec.path && typeof spec.path === 'string') {
+            await this.addFluxLinkForReference(
+                document, 'path', spec.path, links, diagnostics, validatePathCase, fluxContentRoot
+            );
+        }
+
+        if (Array.isArray(spec.patches)) {
+            for (const patch of spec.patches) {
+                if (patch === null || patch === undefined) { continue; }
+                if (typeof patch === 'string') {
+                    await this.addFluxLinkForReference(
+                        document, 'patches', patch, links, diagnostics, validatePathCase, fluxContentRoot
+                    );
+                } else if (typeof patch === 'object' && patch.path) {
+                    await this.addFluxLinkForReference(
+                        document, 'patches', patch.path, links, diagnostics, validatePathCase, fluxContentRoot
+                    );
+                }
+            }
+        }
+
         if (Array.isArray(spec.patchesStrategicMerge)) {
             for (const patch of spec.patchesStrategicMerge) {
                 if (patch !== null && patch !== undefined && typeof patch === 'string') {
                     await this.addFluxLinkForReference(
-                        document,
-                        'patchesStrategicMerge',
-                        patch,
-                        links,
-                        diagnostics,
-                        validatePathCase,
-                        fluxPathLinksUseWorkspaceGit
+                        document, 'patchesStrategicMerge', patch, links, diagnostics, validatePathCase, fluxContentRoot
                     );
                 }
             }
         }
 
-        // Process patchesJson6902
         if (Array.isArray(spec.patchesJson6902)) {
             for (const patch of spec.patchesJson6902) {
                 if (patch !== null && patch !== undefined && typeof patch === 'object' && patch.path) {
                     await this.addFluxLinkForReference(
-                        document,
-                        'patchesJson6902',
-                        patch.path,
-                        links,
-                        diagnostics,
-                        validatePathCase,
-                        fluxPathLinksUseWorkspaceGit
+                        document, 'patchesJson6902', patch.path, links, diagnostics, validatePathCase, fluxContentRoot
                     );
                 }
             }
         }
 
-        // Process components
         if (Array.isArray(spec.components)) {
             for (const component of spec.components) {
                 if (component !== null && component !== undefined && typeof component === 'string') {
                     await this.addFluxLinkForReference(
-                        document,
-                        'components',
-                        component,
-                        links,
-                        diagnostics,
-                        validatePathCase,
-                        fluxPathLinksUseWorkspaceGit
+                        document, 'components', component, links, diagnostics, validatePathCase, fluxContentRoot
                     );
                 }
             }
@@ -225,15 +204,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         if (sr && typeof sr.kind === 'string' && typeof sr.name === 'string') {
             const refNs = typeof sr.namespace === 'string' ? sr.namespace : undefined;
             this.addFluxCrLink(
-                document,
-                docText,
-                sr.kind,
-                sr.name,
-                refNs,
-                defNs,
-                findSourceRefNameIndex,
-                links,
-                'Open Flux source'
+                document, docText, sr.kind, sr.name, refNs, defNs,
+                findSourceRefNameIndex, links, 'Open Flux source'
             );
         }
     }
@@ -429,8 +401,9 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
 
     /**
-     * Add a clickable link for a Flux Kustomization reference (Git root relative)
-     * FIXED: Now properly resolves paths relative to Git root for Flux Kustomizations
+     * Add a clickable link for a Flux Kustomization reference.
+     * @param fluxContentRoot  The git root to resolve paths against.
+     *                         `undefined` means no matching clone was found — skip file link creation.
      */
     private async addFluxLinkForReference(
         document: vscode.TextDocument,
@@ -439,11 +412,10 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         links: vscode.DocumentLink[],
         diagnostics: vscode.Diagnostic[],
         validatePathCase: boolean,
-        fluxPathLinksUseWorkspaceGit: boolean
+        fluxContentRoot: string | undefined
     ): Promise<void> {
 
         try {
-            // Find the reference in the document text
             const text = document.getText();
             const referenceIndex = YamlUtils.findReferenceInText(text, reference);
 
@@ -461,13 +433,13 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 return;
             }
 
-            if (!fluxPathLinksUseWorkspaceGit) {
-                // Paths are relative to Flux source (foreign repo, OCI, etc.) — do not map to this workspace
+            if (!fluxContentRoot) {
+                // No matching git clone (OCI/Bucket/HelmChart source, or no-clone already diagnosed).
+                // Do not manufacture bogus file:// links.
                 return;
             }
 
-            // FIXED: Always resolve relative to Git repository root for Flux Kustomizations
-            const gitRoot = this.findGitRoot(document.fileName);
+            const gitRoot = fluxContentRoot;
 
             // Handle relative paths properly
             let resolvedPath: string;
@@ -523,13 +495,16 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             const uri = vscode.Uri.file(targetPath);
             const docLink = new vscode.DocumentLink(range, uri);
 
-            // Create appropriate tooltip
+            // Build tooltip — note cross-repo resolution when applicable.
+            const crossRepoNote = (fluxContentRoot !== this.findGitRoot(document.fileName))
+                ? ` (resolved via workspace clone at ${fluxContentRoot})`
+                : '';
             if (fieldName === 'path') {
                 docLink.tooltip = targetIsKustomization
-                    ? `Open kustomization: ${path.basename(targetPath)} in ${reference}`
-                    : `Create kustomization: ${path.basename(targetPath)} in ${reference}`;
+                    ? `Open kustomization: ${path.basename(targetPath)} in ${reference}${crossRepoNote}`
+                    : `Create kustomization: ${path.basename(targetPath)} in ${reference}${crossRepoNote}`;
             } else {
-                docLink.tooltip = `Open Flux ${fieldName}: ${path.basename(targetPath)}`;
+                docLink.tooltip = `Open Flux ${fieldName}: ${path.basename(targetPath)}${crossRepoNote}`;
             }
 
             links.push(docLink);

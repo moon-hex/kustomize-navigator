@@ -126,9 +126,21 @@ Caching can be disabled via VS Code settings:
 
 For Ctrl+click navigation from `sourceRef`, `chartRef`, and `ArtifactGenerator` sources:
 
-- **Initial build**: one glob of all `*.yaml` / `*.yml` under the workspace (excluding `node_modules`), parsing multi-document files to record `kind`, `metadata.namespace`, and `metadata.name`.
+- **Initial build**: globs all `*.yaml` / `*.yml` under every workspace root (excluding `node_modules`), parsing multi-document files to record `kind`, `metadata.namespace`, and `metadata.name`.
+- **Multi-root**: `FluxResourceIndex` accepts `string[]`; globs run per root and results are merged (no duplicates).
 - **Incremental updates**: when a non–`kustomization.*` YAML file changes, only that file is re-indexed; kustomization / Flux Kustomization paths use the existing debounced pipeline, which also runs `updateFile` on the Flux index for the touched file.
-- **Full rebuild**: runs together with the kustomize reference map on mass-change detection (>50 files in 1s) and on the initial `initialize()` path.
+- **Full rebuild**: runs together with the kustomize reference map on mass-change detection (>50 files in 1s), on workspace-root changes, and on the initial `initialize()` path.
+
+### Workspace git index (`WorkspaceGitIndex`)
+
+Maintains a `Map<normalizedRemoteUrl, gitRoot[]>` used to resolve Flux Kustomization paths against the correct local clone when the content repo differs from the repo containing the Flux YAML.
+
+- **Scan scope**: each VS Code workspace folder root + its direct children (depth 1). Does **not** recurse further.
+- **Rescan triggers** (both are rare):
+  - `vscode.workspace.onDidChangeWorkspaceFolders` (folders added / removed)
+  - `vscode.workspace.createFileSystemWatcher('**/.git/config')` — `onDidCreate` / `onDidChange` / `onDidDelete`, debounced 1 s
+- **Not triggered by**: ordinary YAML file saves, kustomization changes, or any other file-system activity.
+- **Cost**: one `git remote get-url origin` subprocess call per `.git`-bearing directory found during scan (typically 2–10 calls per workspace, only on the rare triggers above).
 
 ### Future Improvements
 

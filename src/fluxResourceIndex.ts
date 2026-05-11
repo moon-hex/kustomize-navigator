@@ -19,23 +19,32 @@ export class FluxResourceIndex {
     private byKindNsName = new Map<string, vscode.Uri>();
     private byKindName = new Map<string, vscode.Uri[]>();
     private fileToPrimaryKeys = new Map<string, Set<string>>();
+    private readonly workspaceRoots: string[];
 
-    constructor(private readonly workspaceRoot: string) {}
+    constructor(workspaceRoot: string | string[]) {
+        this.workspaceRoots = Array.isArray(workspaceRoot) ? workspaceRoot : [workspaceRoot];
+    }
+
+    /** Update the workspace roots and trigger a full rebuild. */
+    public async setWorkspaceRoots(roots: string[]): Promise<void> {
+        (this as any).workspaceRoots = roots.length > 0 ? roots : this.workspaceRoots;
+        await this.rebuildFull();
+    }
 
     public async rebuildFull(): Promise<void> {
         this.byKindNsName.clear();
         this.byKindName.clear();
         this.fileToPrimaryKeys.clear();
 
-        const files = await glob('**/*.{yaml,yml}', {
-            cwd: this.workspaceRoot,
-            ignore: ['**/node_modules/**'],
-            nodir: true,
-        });
-
-        for (const rel of files) {
-            const abs = path.join(this.workspaceRoot, rel);
-            this.indexFile(abs);
+        for (const root of this.workspaceRoots) {
+            const files = await glob('**/*.{yaml,yml}', {
+                cwd: root,
+                ignore: ['**/node_modules/**'],
+                nodir: true,
+            });
+            for (const rel of files) {
+                this.indexFile(path.join(root, rel));
+            }
         }
     }
 

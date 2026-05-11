@@ -85,33 +85,6 @@ export function readGitRepositorySpecUrl(absYamlPath: string): string | undefine
     return undefined;
 }
 
-/**
- * True when Flux `spec.path` / patch paths should be resolved as files under the current git clone
- * (GitRepository in index, `spec.url` matches `git remote get-url origin` at the document’s git root).
- */
-export function fluxKustomizationPathsUseWorkspaceGitRepo(options: {
-    sourceRefKind: string;
-    gitRepositoryYamlPath: string | undefined;
-    documentFilePath: string;
-    gitRootResolver: (filePath: string) => string;
-}): boolean {
-    const kind = options.sourceRefKind.trim();
-    if (kind !== 'GitRepository') {
-        return false;
-    }
-    const repoPath = options.gitRepositoryYamlPath;
-    if (!repoPath || !fs.existsSync(repoPath)) {
-        return false;
-    }
-    const specUrl = readGitRepositorySpecUrl(repoPath);
-    if (!specUrl) {
-        return false;
-    }
-    const gitRoot = options.gitRootResolver(options.documentFilePath);
-    const origin = getGitRemoteUrl(gitRoot);
-    return gitRemotesMatch(specUrl, origin);
-}
-
 // ---------------------------------------------------------------------------
 // Workspace-aware content-root resolution
 // ---------------------------------------------------------------------------

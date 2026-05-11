@@ -18,13 +18,17 @@ export interface IGitIndex {
 export class WorkspaceGitIndex implements IGitIndex, vscode.Disposable {
     private index = new Map<string, string[]>();
     private gitConfigWatcher: vscode.FileSystemWatcher | undefined;
+    private folderChangeDisposable: vscode.Disposable | undefined;
     private debounceTimer: NodeJS.Timeout | undefined;
     private readonly debounceMs = 1000;
 
     public async initialize(): Promise<void> {
         await this.rebuildIndex();
 
-        vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRebuild());
+        // Store the disposable so it is cleaned up on dispose().
+        this.folderChangeDisposable = vscode.workspace.onDidChangeWorkspaceFolders(
+            () => this.scheduleRebuild()
+        );
 
         // Catch new clones and remote-URL edits inside the workspace.
         this.gitConfigWatcher = vscode.workspace.createFileSystemWatcher('**/.git/config');
@@ -84,25 +88,27 @@ export class WorkspaceGitIndex implements IGitIndex, vscode.Disposable {
     }
 
     private tryAddGitRepo(dirPath: string, index: Map<string, string[]>): void {
+        const normalizedDir = path.normalize(dirPath);
         try {
-            fs.statSync(path.join(dirPath, '.git'));
+            fs.statSync(path.join(normalizedDir, '.git'));
         } catch {
             return; // no .git here
         }
 
-        const remoteUrl = getGitRemoteUrl(dirPath);
+        const remoteUrl = getGitRemoteUrl(normalizedDir);
         if (!remoteUrl) { return; }
 
-        const normalized = normalizeGitRemoteUrl(remoteUrl);
-        const existing = index.get(normalized);
+        const normalizedUrl = normalizeGitRemoteUrl(remoteUrl);
+        const existing = index.get(normalizedUrl);
         if (existing) {
-            if (!existing.includes(dirPath)) { existing.push(dirPath); }
+            if (!existing.includes(normalizedDir)) { existing.push(normalizedDir); }
         } else {
-            index.set(normalized, [dirPath]);
+            index.set(normalizedUrl, [normalizedDir]);
         }
     }
 
     public dispose(): void {
+        this.folderChangeDisposable?.dispose();
         this.gitConfigWatcher?.dispose();
         if (this.debounceTimer) { clearTimeout(this.debounceTimer); }
     }

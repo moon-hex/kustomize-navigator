@@ -130,6 +130,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         })();
 
         const fluxContentRoot = contentRootResult.gitRoot; // string | undefined
+        const isCrossRepo = contentRootResult.via === 'workspace';
 
         // Option A: add a single warning on the sourceRef when a GitRepository URL is known
         // but no matching local clone was found in the workspace.
@@ -151,7 +152,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
 
         if (spec.path && typeof spec.path === 'string') {
             await this.addFluxLinkForReference(
-                document, 'path', spec.path, links, diagnostics, validatePathCase, fluxContentRoot
+                document, 'path', spec.path, links, diagnostics, validatePathCase, fluxContentRoot, isCrossRepo
             );
         }
 
@@ -160,11 +161,11 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
                 if (patch === null || patch === undefined) { continue; }
                 if (typeof patch === 'string') {
                     await this.addFluxLinkForReference(
-                        document, 'patches', patch, links, diagnostics, validatePathCase, fluxContentRoot
+                        document, 'patches', patch, links, diagnostics, validatePathCase, fluxContentRoot, isCrossRepo
                     );
                 } else if (typeof patch === 'object' && patch.path) {
                     await this.addFluxLinkForReference(
-                        document, 'patches', patch.path, links, diagnostics, validatePathCase, fluxContentRoot
+                        document, 'patches', patch.path, links, diagnostics, validatePathCase, fluxContentRoot, isCrossRepo
                     );
                 }
             }
@@ -174,7 +175,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             for (const patch of spec.patchesStrategicMerge) {
                 if (patch !== null && patch !== undefined && typeof patch === 'string') {
                     await this.addFluxLinkForReference(
-                        document, 'patchesStrategicMerge', patch, links, diagnostics, validatePathCase, fluxContentRoot
+                        document, 'patchesStrategicMerge', patch, links, diagnostics, validatePathCase, fluxContentRoot, isCrossRepo
                     );
                 }
             }
@@ -184,7 +185,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             for (const patch of spec.patchesJson6902) {
                 if (patch !== null && patch !== undefined && typeof patch === 'object' && patch.path) {
                     await this.addFluxLinkForReference(
-                        document, 'patchesJson6902', patch.path, links, diagnostics, validatePathCase, fluxContentRoot
+                        document, 'patchesJson6902', patch.path, links, diagnostics, validatePathCase, fluxContentRoot, isCrossRepo
                     );
                 }
             }
@@ -194,7 +195,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             for (const component of spec.components) {
                 if (component !== null && component !== undefined && typeof component === 'string') {
                     await this.addFluxLinkForReference(
-                        document, 'components', component, links, diagnostics, validatePathCase, fluxContentRoot
+                        document, 'components', component, links, diagnostics, validatePathCase, fluxContentRoot, isCrossRepo
                     );
                 }
             }
@@ -404,6 +405,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
      * Add a clickable link for a Flux Kustomization reference.
      * @param fluxContentRoot  The git root to resolve paths against.
      *                         `undefined` means no matching clone was found — skip file link creation.
+     * @param isCrossRepo      True when fluxContentRoot comes from a different workspace clone than
+     *                         the document's own repo — used to annotate the tooltip.
      */
     private async addFluxLinkForReference(
         document: vscode.TextDocument,
@@ -412,7 +415,8 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
         links: vscode.DocumentLink[],
         diagnostics: vscode.Diagnostic[],
         validatePathCase: boolean,
-        fluxContentRoot: string | undefined
+        fluxContentRoot: string | undefined,
+        isCrossRepo: boolean = false
     ): Promise<void> {
 
         try {
@@ -496,7 +500,7 @@ export class KustomizeLinkProvider implements vscode.DocumentLinkProvider {
             const docLink = new vscode.DocumentLink(range, uri);
 
             // Build tooltip — note cross-repo resolution when applicable.
-            const crossRepoNote = (fluxContentRoot !== this.findGitRoot(document.fileName))
+            const crossRepoNote = isCrossRepo
                 ? ` (resolved via workspace clone at ${fluxContentRoot})`
                 : '';
             if (fieldName === 'path') {

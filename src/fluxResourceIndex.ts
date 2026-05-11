@@ -19,15 +19,17 @@ export class FluxResourceIndex {
     private byKindNsName = new Map<string, vscode.Uri>();
     private byKindName = new Map<string, vscode.Uri[]>();
     private fileToPrimaryKeys = new Map<string, Set<string>>();
-    private readonly workspaceRoots: string[];
+    private workspaceRoots: string[];
 
     constructor(workspaceRoot: string | string[]) {
-        this.workspaceRoots = Array.isArray(workspaceRoot) ? workspaceRoot : [workspaceRoot];
+        this.workspaceRoots = Array.isArray(workspaceRoot) ? [...workspaceRoot] : [workspaceRoot];
     }
 
     /** Update the workspace roots and trigger a full rebuild. */
     public async setWorkspaceRoots(roots: string[]): Promise<void> {
-        (this as any).workspaceRoots = roots.length > 0 ? roots : this.workspaceRoots;
+        if (roots.length > 0) {
+            this.workspaceRoots = [...roots];
+        }
         await this.rebuildFull();
     }
 

@@ -1,5 +1,25 @@
 # Change Log
 
+## [1.6.0] - 2026-05-11
+
+### Added
+- **Multi-root workspace support**: the extension now scans and indexes all VS Code workspace folders (previously only the first folder was used). Kustomization files, Flux resource index, and back-references are discovered across every root.
+- **`WorkspaceGitIndex`**: lightweight cache mapping normalised git remote URLs to local git-root paths, scanned at depth-1 under each workspace folder. Triggers: workspace folder add/remove and `.git/config` change (debounced 1 s). No rescans on ordinary YAML saves.
+- **Cross-repo Flux link resolution**: `spec.path` / patch / component links in a Flux `Kustomization` are now resolved against whichever workspace clone's `origin` matches `GitRepository.spec.url`, even when that clone is a *different* folder from the one containing the Flux YAML.  The tooltip on the link notes `(resolved via workspace clone at …)` when a cross-repo root is used.
+- **Option A diagnostic** (`Warning`) on `sourceRef.name` when `sourceRef` is a `GitRepository` with a known `spec.url` but no matching local clone is found in the workspace — makes the absence of path links visible instead of silently skipping them.
+- **Hover path fix**: hover resolution for Flux Kustomization references now uses `parser.resolveReferenceFor()` (git-root relative) instead of document-directory relative, aligning hover and Ctrl+click behaviour.
+- `onDidChangeWorkspaceFolders` handler: calls `fileWatcher.updateWorkspaceRoots()` to trigger a full rebuild when roots are added or removed.
+
+### Changed
+- `KustomizeParser` and `FluxResourceIndex` constructors now accept `string | string[]`; single-string callers are unaffected.
+- Flux link provider no longer imports the legacy `fluxKustomizationPathsUseWorkspaceGitRepo` boolean helper; uses `resolveFluxContentRoot` (discriminated union) instead.
+
+### Fixed
+- Flux path validation (missing-file / path-case warnings) was silently skipped in 1.5.0 when the Flux YAML and the content repo were in different workspace folders. This is now resolved.
+
+### Known limitations (see README)
+- Workspace git scan depth is fixed at 1 level below each workspace root. Nested clones deeper than one level require adding the sub-directory as an explicit workspace folder.
+
 ## [1.5.0] - 2026-04-12
 
 ### Added

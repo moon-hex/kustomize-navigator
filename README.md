@@ -79,6 +79,13 @@ Each check can be individually enabled/disabled in settings.
 
 ## Recent Changes
 
+### 1.6.0 (2026-05-11)
+- **Multi-root workspace**: all VS Code workspace folders are now scanned - no longer limited to the first folder.
+- **Cross-repo Flux links**: `spec.path` / patch / component links resolve against whichever workspace clone's `origin` matches `GitRepository.spec.url`, including clones in sibling directories or other workspace roots. Tooltip notes the resolved clone root for cross-repo links.
+- **Workspace git index**: depth-1 scan under each workspace root; refreshed only on workspace-folder changes and `.git/config` edits (not on every YAML save).
+- **Option A diagnostic**: when a `GitRepository` URL is known but no matching local clone exists, a `Warning` squiggle appears on `sourceRef.name` explaining why path links are absent.
+- **Hover path fix**: Flux Kustomization reference hover resolves paths git-root-relative (aligned with Ctrl+click).
+
 ### 1.5.0 (2026-04-12)
 - **Flux foreign GitRepository**: `spec.path` / patch / component links open as local files only when `sourceRef` is a `GitRepository` and its `spec.url` matches this repo’s `origin` (same clone). Otherwise local links are omitted so paths are not resolved under the wrong tree. Remote `https://` / `oci://` / … links unchanged.
 
@@ -126,13 +133,13 @@ For complete version history, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Known Issues
 
-- **Flux paths vs Git source (1.5.0)**: Local Ctrl+click targets for `spec.path` / patches / `components` are only enabled when `spec.sourceRef` points at a **GitRepository** whose `spec.url` matches **`git remote get-url origin`** for the git root of the file you have open. If you use a **foreign** `GitRepository`, **OCIRepository**, **Bucket**, etc., those paths are intentionally **not** linked as workspace files (they would be wrong). Remote URI strings (`https://`, `oci://`, …) still open as links. **Back-references, hovers, and the reference graph** may still assume workspace-relative layout for Flux kustomizations in some cases.
+- **Flux GitRepository path resolution (1.6.0)**: Local Ctrl+click targets for `spec.path` / patches / `components` are resolved against whichever workspace clone's `origin` matches `GitRepository.spec.url` � either the clone containing the Flux YAML, or a sibling clone found at depth-1 under a workspace root. For **OCIRepository**, **Bucket**, **HelmChart**, etc., local path links are omitted (they reference a remote artifact, not a local tree). Remote URI strings (`https://`, `oci://`, �) still open as web links. If a GitRepository URL is known but no matching clone exists, a Warning diagnostic appears on `sourceRef.name`.
 - May activate on YAML files without kustomization files
 - Flux cross-manifest links only work when the target resource exists as YAML in the workspace; if `metadata.namespace` is omitted on a reference, the referring object’s namespace is assumed (Flux convention). If the same `kind` + `name` exists in multiple namespaces and the reference is ambiguous, the link may not appear
 
 ## Plans
 
-- **Multi-root / second clone**: If another workspace folder is a git checkout whose `origin` matches the `GitRepository.spec.url`, resolve Flux paths there (open correct local files).
+- **Multi-root / second clone**: Implemented in 1.6.0. Workspace git scan depth is capped at 1 level below each root; add a deeper sub-repo as an explicit workspace folder if needed.
 - **Forge links**: When the source is foreign, optional “open on GitHub/GitLab” `tree/` links using `spec.url` + `spec.ref` + path.
 - **Parser / back-refs**: Align `getFluxResolvedReferences` and related graph logic with the same source-repo rules as document links.
 

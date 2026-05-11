@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { YamlUtils } from './yamlUtils';
+import type { IGitIndex } from './workspaceGitIndex';
 
 /**
  * Normalize git remote URLs for comparison (https vs ssh, .git suffix, trailing slash).
@@ -84,29 +85,56 @@ export function readGitRepositorySpecUrl(absYamlPath: string): string | undefine
     return undefined;
 }
 
+// ---------------------------------------------------------------------------
+// Workspace-aware content-root resolution
+// ---------------------------------------------------------------------------
+
 /**
- * True when Flux `spec.path` / patch paths should be resolved as files under the current git clone
- * (GitRepository in index, `spec.url` matches `git remote get-url origin` at the document’s git root).
+ * Discriminated union describing which git root to use when resolving Flux
+ * Kustomization local paths.
  */
-export function fluxKustomizationPathsUseWorkspaceGitRepo(options: {
+export type FluxContentRootResult =
+    | { gitRoot: string; via: 'document' | 'workspace' }
+    | { gitRoot: undefined; via: 'no-clone'; specUrl: string }
+    | { gitRoot: undefined; via: 'skip' };   // non-GitRepository source or specUrl absent
+
+/**
+ * Determines the git-root directory whose checkout contains the files referenced
+ * by a Flux Kustomization's spec.path / patches.
+ *
+ * Resolution order:
+ *  1. Document's own git clone, if its origin matches specUrl.
+ *  2. Any other clone found by gitIndex in the workspace (cross-repo link).
+ *  3. { via: 'no-clone' } — GitRepository source with a known URL but no local clone.
+ *  4. { via: 'skip' } — non-GitRepository source (OCI, Bucket, …) or missing specUrl.
+ */
+export function resolveFluxContentRoot(options: {
     sourceRefKind: string;
-    gitRepositoryYamlPath: string | undefined;
+    specUrl: string | undefined;
     documentFilePath: string;
-    gitRootResolver: (filePath: string) => string;
-}): boolean {
-    const kind = options.sourceRefKind.trim();
-    if (kind !== 'GitRepository') {
-        return false;
+    documentGitRoot: string;
+    gitIndex: IGitIndex;
+}): FluxContentRootResult {
+    const { sourceRefKind, specUrl, documentFilePath, documentGitRoot, gitIndex } = options;
+
+    if (sourceRefKind.trim() !== 'GitRepository') {
+        return { gitRoot: undefined, via: 'skip' };
     }
-    const repoPath = options.gitRepositoryYamlPath;
-    if (!repoPath || !fs.existsSync(repoPath)) {
-        return false;
-    }
-    const specUrl = readGitRepositorySpecUrl(repoPath);
     if (!specUrl) {
-        return false;
+        return { gitRoot: undefined, via: 'skip' };
     }
-    const gitRoot = options.gitRootResolver(options.documentFilePath);
-    const origin = getGitRemoteUrl(gitRoot);
-    return gitRemotesMatch(specUrl, origin);
+
+    // Fast path: document lives inside the matching clone.
+    const docOrigin = getGitRemoteUrl(documentGitRoot);
+    if (docOrigin && gitRemotesMatch(specUrl, docOrigin)) {
+        return { gitRoot: documentGitRoot, via: 'document' };
+    }
+
+    // Search workspace for another clone whose origin matches.
+    const found = gitIndex.findBest(specUrl, documentFilePath);
+    if (found) {
+        return { gitRoot: found, via: 'workspace' };
+    }
+
+    return { gitRoot: undefined, via: 'no-clone', specUrl };
 }

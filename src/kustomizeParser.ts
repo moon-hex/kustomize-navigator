@@ -81,8 +81,25 @@ export class KustomizeParser {
     // Flag to enable/disable caching
     private enableFileSystemCache: boolean;
 
-    constructor(private workspaceRoot: string, enableFileSystemCache: boolean = true) {
+    private workspaceRoots: string[];
+
+    constructor(workspaceRoot: string | string[], enableFileSystemCache: boolean = true) {
+        this.workspaceRoots = Array.isArray(workspaceRoot) ? [...workspaceRoot] : [workspaceRoot];
         this.enableFileSystemCache = enableFileSystemCache;
+    }
+
+    /** Primary workspace root (first entry) — used as fallback in path normalisation. */
+    private get workspaceRoot(): string {
+        return this.workspaceRoots[0];
+    }
+
+    /** Update workspace roots and trigger a full reference-map rebuild. */
+    public async setWorkspaceRoots(roots: string[]): Promise<void> {
+        if (roots.length > 0) {
+            this.workspaceRoots = [...roots];
+            this.gitRootCache.clear();
+        }
+        await this.buildReferenceMap();
     }
 
     /**
@@ -160,38 +177,39 @@ export class KustomizeParser {
     }
 
     /**
-     * Find all kustomization files in the workspace
+     * Find all kustomization files across all workspace roots.
      */
     public async findKustomizationFiles(): Promise<string[]> {
         try {
-            // Find standard kustomization files
-            const kustomizationFiles = await glob('**/kustomization.{yaml,yml}', {
-                cwd: this.workspaceRoot,
-                ignore: ['**/node_modules/**']
-            });
+            const seen = new Set<string>();
+            const absolutePaths: string[] = [];
+            let stdCount = 0;
+            let fluxCount = 0;
 
-            // Find Flux Kustomization CRs in all YAML files
-            const allYamlFiles = await glob('**/*.{yaml,yml}', {
-                cwd: this.workspaceRoot,
-                ignore: ['**/node_modules/**', '**/kustomization.{yaml,yml}'] // Exclude already found files
-            });
+            for (const root of this.workspaceRoots) {
+                const kustomizationFiles = await glob('**/kustomization.{yaml,yml}', {
+                    cwd: root,
+                    ignore: ['**/node_modules/**']
+                });
+                const allYamlFiles = await glob('**/*.{yaml,yml}', {
+                    cwd: root,
+                    ignore: ['**/node_modules/**', '**/kustomization.{yaml,yml}']
+                });
 
-            const fluxKustomizations: string[] = [];
+                for (const file of kustomizationFiles) {
+                    const abs = path.normalize(path.join(root, file));
+                    if (!seen.has(abs)) { seen.add(abs); absolutePaths.push(abs); stdCount++; }
+                }
 
-            // Check each YAML file to see if it's a Flux Kustomization
-            for (const file of allYamlFiles) {
-                const absolutePath = path.join(this.workspaceRoot, file);
-                if (this.isFluxKustomizationFile(absolutePath)) {
-                    fluxKustomizations.push(file);
+                for (const file of allYamlFiles) {
+                    const abs = path.normalize(path.join(root, file));
+                    if (!seen.has(abs) && this.isFluxKustomizationFile(abs)) {
+                        seen.add(abs); absolutePaths.push(abs); fluxCount++;
+                    }
                 }
             }
 
-            // Combine both types and make paths absolute
-            const allFiles = [...kustomizationFiles, ...fluxKustomizations];
-            const absolutePaths = allFiles.map(file => path.join(this.workspaceRoot, file));
-
-            console.log(`Found ${kustomizationFiles.length} standard kustomization files and ${fluxKustomizations.length} Flux Kustomization CRs`);
-
+            console.log(`Found ${stdCount} standard kustomization files and ${fluxCount} Flux Kustomization CRs across ${this.workspaceRoots.length} workspace root(s)`);
             return absolutePaths;
         } catch (err) {
             console.error('Error finding kustomization files:', err);
@@ -375,9 +393,24 @@ export class KustomizeParser {
     }
 
     /**
-     * Resolve reference path based on file type
+     * Public wrapper so providers (e.g. hover) can resolve a reference the same way
+     * the parser does internally.
+     *
+     * @param basePath  Absolute path to the kustomization YAML that contains the reference.
+     * @param reference Raw reference string from the YAML (relative path, absolute, or URI).
+     * @param contentRoot  Optional override for the git root used when resolving Flux
+     *                     Kustomization paths (e.g. a workspace cross-repo clone root).
      */
-    private resolveReference(basePath: string, reference: string): string {
+    public resolveReferenceFor(basePath: string, reference: string, contentRoot?: string): string {
+        return this.resolveReference(basePath, reference, contentRoot);
+    }
+
+    /**
+     * Resolve reference path based on file type.
+     * @param contentRoot  When provided and basePath is a Flux Kustomization, use this
+     *                     directory as the git root instead of auto-detecting.
+     */
+    private resolveReference(basePath: string, reference: string, contentRoot?: string): string {
         const ref = reference.trim();
 
         if (/^file:\/\//i.test(ref)) {
@@ -395,21 +428,18 @@ export class KustomizeParser {
         const isFluxKustomization = this.isFluxKustomizationFile(basePath);
 
         if (isFluxKustomization) {
-            // For Flux Kustomization CRs, resolve relative to Git repository root
-            const gitRoot = this.findGitRoot(basePath);
-            // Handle relative paths properly
+            // For Flux Kustomization CRs, resolve relative to the content git root.
+            // contentRoot may be a cross-repo clone root supplied by the link provider.
+            const gitRoot = contentRoot ?? this.findGitRoot(basePath);
             if (path.isAbsolute(ref)) {
                 return path.normalize(ref);
             } else {
-                // Remove leading "./" if present and resolve relative to git root
                 const cleanReference = ref.startsWith('./') ? ref.slice(2) : ref;
-                // path.resolve already normalizes, but ensure it's normalized
                 return path.normalize(path.resolve(gitRoot, cleanReference));
             }
         } else {
             // For standard kustomization files, resolve relative to file location
             const baseDir = path.dirname(basePath);
-            // path.resolve already normalizes, but ensure it's normalized
             return path.normalize(path.resolve(baseDir, ref));
         }
     }

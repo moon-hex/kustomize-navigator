@@ -98,8 +98,9 @@ export class KustomizeHoverProvider implements vscode.HoverProvider {
                     return new vscode.Hover(remoteHover, wordRange);
                 }
 
-                // Resolve the reference
-                let resolvedPath = path.resolve(baseDir, matchingReference);
+                // Resolve the reference — use the parser so Flux Kustomizations resolve
+                // relative to the git root rather than the document directory.
+                let resolvedPath = this.parser.resolveReferenceFor(docPath, matchingReference);
                 let targetIsKustomization = false;
 
                 // If it's a directory, look for kustomization.yaml inside
